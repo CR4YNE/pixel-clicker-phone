@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '0.6.67-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '0.6.68-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -2497,7 +2497,7 @@
     // the coin works with the shop open too
     const dx = gx - coinX();
     const dy = gy - COIN_Y;
-    if (gy < FLOOR_Y && !inCounter(gx, gy)) spawnClick(gx, gy);   // the whole scene above the floor counts, not only the cookie
+    if (gy < FLOOR_Y + 10) spawnClick(gx, gy);   // any place above the middle of the floor counts, the counter included
   });
 
   canvas.addEventListener('pointermove', (e) => {
