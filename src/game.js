@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '0.6.69-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '0.6.70-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -2956,6 +2956,8 @@
         const [x0, y0, x1, y1] = sectionRect(i);
         fillRect(x0, y0, x1 - x0, y1 - y0, premiumSection === sct.id ? COL.tabOn : COL.tabOff);
         drawTextBox(sct.label, 1, x0, x1, y0, y1, COL.text);
+        // the free section blinks while a free ad is left to watch
+        if (sct.id === 'ads' && !(adWatched.double && adWatched.discount) && Math.sin(cookT * 6) > 0) blinkDot(x1 - 6, y0 + 2);
       });
     }
     // list (clipped)
