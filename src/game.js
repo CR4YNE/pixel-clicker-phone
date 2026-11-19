@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '0.6.70-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '0.6.71-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -3586,6 +3586,8 @@
   }
   let last = performance.now();
   function frame(now) {
+    // inside VK the frame can change its size without a resize event: the canvas follows it on every frame
+    if (window.innerWidth !== fitW || window.innerHeight !== fitH) { fitW = window.innerWidth; fitH = window.innerHeight; fitScreen(); }
     const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));   // a frame timestamp can be slightly earlier than `last` on load
     last = now;
     update(dt);
@@ -3624,6 +3626,7 @@
     }
     requestAnimationFrame(frame);
   }
+  let fitW = 0, fitH = 0;   // the window size the canvas was last fitted to
   function fitScreen() {
     const k = Math.max(1, Math.floor(Math.min(window.innerWidth / PHONE_W, window.innerHeight / PHONE_H)));
     canvas.style.width = PHONE_W * k + 'px';
