@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.216-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.217-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -2508,7 +2508,7 @@
     if (splashT > 0) return;                  // the start screen takes no taps
     if (infoOpen) {                           // the launch info window: its OK button closes it (scene x, raw screen y)
       const [ix] = toGame(e);
-      if (inRect(ix, lastRawY, 110, 194, 210, 212)) infoOpen = false;
+      if (inRect(ix, lastRawY, 110, 206, 210, 224)) infoOpen = false;
       return;
     }
     startMusicOnce();
@@ -3528,16 +3528,18 @@
   function drawInfoDialog() {
     const keep = ctx; ctx = screenCtx;   // drawn on the screen, so the strip under the scene is covered too
     fillRect(0, 0, PHONE_W, PHONE_H, 'rgba(10, 8, 24, 0.75)');
-    fillRect(14, 98, 152, 124, COL.panel);
-    fillRect(14, 98, 152, 1, COL.panelEdge); fillRect(14, 221, 152, 1, COL.panelEdge);
-    fillRect(14, 98, 1, 124, COL.panelEdge); fillRect(165, 98, 1, 124, COL.panelEdge);
-    drawText('КУЧА ПРЯНИКОВ КЛИКЕР', 1, 90, 110, accent(), 'center');
-    drawText('ВЕРСИЯ ' + VERSION.replace('-PHONE', ''), 1, 90, 126, COL.text, 'center');
-    drawText('РАЗРАБОТЧИК: CR4YNE', 1, 90, 140, COL.text, 'center');
-    drawText('ВОЗРАСТНОЕ', 1, 90, 154, COL.text, 'center');
-    drawText('ОГРАНИЧЕНИЕ 0+', 1, 90, 166, COL.text, 'center');
-    drawText('ИГРА В РАЗРАБОТКЕ', 1, 90, 182, dimTone(), 'center');
-    settingsButton(40, 194, 140, 212, 'ОК');
+    fillRect(14, 86, 152, 148, COL.panel);
+    fillRect(14, 86, 152, 1, COL.panelEdge); fillRect(14, 233, 152, 1, COL.panelEdge);
+    fillRect(14, 86, 1, 148, COL.panelEdge); fillRect(165, 86, 1, 148, COL.panelEdge);
+    drawText('КУЧА ПРЯНИКОВ КЛИКЕР', 1, 90, 98, accent(), 'center');
+    drawText('ВЕРСИЯ ' + VERSION.replace('-PHONE', ''), 1, 90, 114, COL.text, 'center');
+    drawText('РАЗРАБОТЧИК: CR4YNE', 1, 90, 128, COL.text, 'center');
+    drawText('ВОЗРАСТНОЕ', 1, 90, 142, COL.text, 'center');
+    drawText('ОГРАНИЧЕНИЕ 0+', 1, 90, 154, COL.text, 'center');
+    drawText('ИГРА В РАЗРАБОТКЕ', 1, 90, 170, dimTone(), 'center');
+    drawText('ИГРОВОЙ ПРОЦЕСС', 1, 90, 184, dimTone(), 'center');
+    drawText('МОЖЕТ БЫТЬ ИЗМЕНЁН', 1, 90, 196, dimTone(), 'center');
+    settingsButton(40, 206, 140, 224, 'ОК');
     ctx = keep;
   }
   function drawSplash() {
