@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.234-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.251-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -926,6 +926,8 @@
     const info = PREMIUM_INFO[it.id];
     const m = premiumWin.mode;
     if (m === 'confirm' || m === 'pending') {
+      // the skin effects stay inside the window: the picture is clipped to the inner frame
+      ctx.save(); ctx.beginPath(); ctx.rect(REB_X0 + 2, REB_Y0 + 2, REB_X1 - REB_X0 - 4, REB_Y1 - REB_Y0 - 4); ctx.clip();
       drawTextBox('ПОКУПКА', 1, REB_X0, REB_X1, 10, 20, COL.text);
       const previewSkin = it.id === 'skins_all' ? premiumSkinCycle() : PREMIUM_SKIN_OF[it.id];   // the bundle cycles through all premium skins
       const isSkin = !!previewSkin;
@@ -948,7 +950,7 @@
       const maxW = 246 - tx;
       // the lines of the text are 4 px apart (a 7 px line and a 4 px gap: the step is 11)
       let y = drawWrapped(info.name, 1, tx, 26, maxW, accent(), 11);
-      y = drawWrapped('ЧТО ДАЁТ:', 1, tx, y, maxW, dimTone(), 11);
+      y = drawWrapped(isSkin && it.id !== 'skins_all' ? 'ЭФФЕКТЫ:' : 'ЧТО ДАЁТ:', 1, tx, y, maxW, dimTone(), 11);
       const line0 = info.lines[0];   // the whole range of skins
       y = drawWrapped(line0, 1, tx, y, maxW, COL.text, 11);
       drawText(info.lines[1], 1, tx, 93, accent(), 'left');   // НАВСЕГДА: yellow, about where the white line is (above the buy button, which starts at 112)
@@ -958,6 +960,7 @@
       } else {
         drawTextBox('ОПЛАТА...', 1, 74, 246, 112, 124, COL.text);
       }
+      ctx.restore();
       return;
     }
     if (m === 'done') {
@@ -3541,10 +3544,10 @@
     // the title stands a little apart; all the other lines are 14 px apart, and so is the button under the last one
     drawText('КУЧА ПРЯНИКОВ КЛИКЕР', 1, 90, 96, accent(), 'center');
     const lines = [
-      ['ВЕРСИЯ ' + VERSION.replace('-PHONE', ''), COL.text],
+      ['ВЕРСИЯ: ' + VERSION.replace('-PHONE', ''), COL.text],
       ['РАЗРАБОТЧИК: CR4YNE', COL.text],
       ['ВОЗРАСТНОЕ', COL.text],
-      ['ОГРАНИЧЕНИЕ 0+', COL.text],
+      ['ОГРАНИЧЕНИЕ: 0+', COL.text],
       ['ИГРА В РАЗРАБОТКЕ', dimTone()],
       ['ИГРОВОЙ ПРОЦЕСС', dimTone()],
       ['МОЖЕТ БЫТЬ ИЗМЕНЁН', dimTone()],
