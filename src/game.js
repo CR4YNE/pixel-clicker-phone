@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '0.6.68-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '0.6.69-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -787,7 +787,7 @@
   }
   // the bonus row at the height of КЛИКАЙ, centred under it: the framed button with the number of active bonuses (0 when none),
   // then one multiplier for the premium 2x and 3x and the 10-minute ad 2x, multiplied together (for example Х12)
-  const MENU_BTN_W = 20, MENU_BTN_Y = [180, 198];   // right above ПРОГРЕСС (4 px above its row), drawn on the screen
+  const MENU_BTN_W = 20, MENU_BTN_Y = [160, 178];   // right above ПРОГРЕСС (4 px above its row), drawn on the screen
   const MENU_BTN_X = topRect('achievements')[1] - MENU_BTN_W;   // the right edge of ПРОГРЕСС, at the right wall
   function multiplierBonus() {
     return (premiumOwned.double ? 2 : 1) * (premiumOwned.triple ? 3 : 1) * (adBoost.double > 0 ? 2 : 1);
@@ -974,7 +974,7 @@
   const SKIN_BTN_LABEL = 'ВНЕШНИЙ ВИД';
   const SKIN_BTN_W = textWidth(SKIN_BTN_LABEL, 1) + 2 * (2 + 2);
   const SKIN_BTN_X0 = 160 - Math.floor(SKIN_BTN_W / 2);   // whole pixels, so the frame is as sharp as the top buttons
-  const SKIN_BTN = [topRect('settings')[0], 180, topRect('settings')[1], 198];   // drawn at the screen rows 160-177: scene rows 180-197 after the shift   // right above НАСТРОЙКИ: the same left and right edges, 4 px above the top row (the same gap as between the rows)   // 18 px tall; 3 px to the bottom edge, like the top buttons have at the top
+  const SKIN_BTN = [topRect('settings')[0], 160, topRect('settings')[1], 178];   // drawn at the screen rows 160-177: scene rows 180-197 after the shift   // right above НАСТРОЙКИ: the same left and right edges, 4 px above the top row (the same gap as between the rows)   // 18 px tall; 3 px to the bottom edge, like the top buttons have at the top
   // the appearance window: a list of skins; tapping a skin opens its preview (its look and name), where it can be worn
   let skinPreview = null;        // id of the skin shown in the preview, or null for the list
   function handleSkinDown(gx, gy) {
@@ -2415,11 +2415,14 @@
   }
 
   // ---------- input ----------
+  let lastRawY = 0;   // the screen row of the last tap, before the shift (the strip under the scene uses it)
   function toGame(e) {
     const r = canvas.getBoundingClientRect();
     const s = r.width / PHONE_W;   // screen pixels per canvas pixel
-    let y = (e.clientY - r.top) / s;
-    if (y < 180) y += SCENE_UP;   // every screen row above 180 is shifted up by SCENE_UP: one row, one place, no overlap
+    const raw = (e.clientY - r.top) / s;
+    lastRawY = raw;
+    // rows 0-159 show the scene rows 20-179; rows 160-179 are the strip under the scene (no scene picture): far away from every scene target
+    const y = raw < 160 ? raw + SCENE_UP : raw < 180 ? 1000 + raw : raw;
     return [(e.clientX - r.left) / s + SCENE_CROP_X, y];   // the whole screen is the scene now
   }
   function inRect(gx, gy, x0, y0, x1, y1) {
@@ -2444,7 +2447,7 @@
     if (skinWin) { handleSkinDown(gx, gy - SHEET_DY); return; }             // and the appearance window
     if (premiumWin) { handlePremiumWinDown(gx, gy - SHEET_DY); return; }     // and the premium purchase window
     if (boostMenuOpen) { boostMenuOpen = false; return; }          // a tap closes the bonus menu
-    if (inRect(gx, gy, MENU_BTN_X, MENU_BTN_Y[0], MENU_BTN_X + MENU_BTN_W, MENU_BTN_Y[1])) { boostMenuOpen = true; return; }   // the framed button opens the menu
+    if (inRect(gx, lastRawY, MENU_BTN_X, MENU_BTN_Y[0], MENU_BTN_X + MENU_BTN_W, MENU_BTN_Y[1])) { boostMenuOpen = true; return; }   // the framed button opens the menu
     if (tryHitAppetite(gx, gy)) return;                           // the glowing plate on the counter
     countBonyaPokes(gx, gy);
     if (tapBonyaBubble(gx, gy)) return;
@@ -2452,7 +2455,7 @@
     const shopSheetOpen = panelOpen && panelT > 0.99;   // while the shop sheet is open, the buttons under it are not reachable
     if (!shopSheetOpen && inRect(gx, gy, GEAR_X0, GEAR_Y0, GEAR_X1, GEAR_Y1)) { closeMenus('settings'); settingsOpen = true; return; }
     // shop controls (only when the panel is fully open)
-    if (inRect(gx, gy, SKIN_BTN[0], SKIN_BTN[1], SKIN_BTN[2], SKIN_BTN[3])) { closeMenus('skin'); skinWin = true; skinScroll = clampSkinScroll(Math.floor(Math.max(0, SKINS.findIndex((s) => s.id === settings.skin)) / SKIN_COLS) * SKIN_ROW_H); return; }
+    if (inRect(gx, lastRawY, SKIN_BTN[0], SKIN_BTN[1], SKIN_BTN[2], SKIN_BTN[3])) { closeMenus('skin'); skinWin = true; skinScroll = clampSkinScroll(Math.floor(Math.max(0, SKINS.findIndex((s) => s.id === settings.skin)) / SKIN_COLS) * SKIN_ROW_H); return; }
     // the ПРОГРЕСС button is reachable from the shop too
     const [ax0, ax1, ay0, ay1] = topRect('achievements');
     if (!shopSheetOpen && inRect(gx, gy, ax0, ay0, ax1, ay1)) { closeMenus('progress'); progWin = { tab: 'stats', page: 0 }; return; }
@@ -2769,7 +2772,7 @@
   // 40 taps on Bonya within 10 s: the ad-bonus bubble appears at once
   let bonyaPokeTimes = [];
   function countBonyaPokes(gx, gy) {
-    if (!inRect(gx, gy, BONYA_X, BONYA_Y + SCENE_UP, BONYA_X + 40, BONYA_Y + SCENE_UP + 24)) return;
+    if (!inRect(gx, lastRawY, BONYA_X, BONYA_Y, BONYA_X + 40, BONYA_Y + 24)) return;
     const now = Date.now();
     bonyaPokeTimes = bonyaPokeTimes.filter((t) => now - t < 10000);
     bonyaPokeTimes.push(now);
@@ -2779,7 +2782,7 @@
     }
   }
   function tapBonya(gx, gy) {
-    if (!settings.animBg || !inRect(gx, gy, BONYA_X, BONYA_Y + SCENE_UP, BONYA_X + 40, BONYA_Y + SCENE_UP + 24)) return false;
+    if (!settings.animBg || !inRect(gx, lastRawY, BONYA_X, BONYA_Y, BONYA_X + 40, BONYA_Y + 24)) return false;
     const now = Date.now();
     bonyaTapTimes = bonyaTapTimes.filter((t) => now - t < BONYA_WAKE_WINDOW);
     bonyaTapTimes.push(now);
