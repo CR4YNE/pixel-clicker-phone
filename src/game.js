@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '0.6.73-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '0.6.80-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -782,7 +782,8 @@
     const list = menuLabels();
     if (premiumOwned.double) list.push('2Х ДОХОД НАВСЕГДА');
     if (premiumOwned.triple) list.push('3Х ДОХОД НАВСЕГДА');
-    if (adBoost.double > 0) list.push('2Х РЕКЛАМА ' + adLabel().replace('2Х ДОХОД ', ''));
+    if (adBoost.double > 0) list.push('2Х ДОХОД ЗА РЕКЛАМУ ' + adLabel().replace('2Х ДОХОД ', ''));
+    if (adBoost.discount > 0) { const s = Math.ceil(adBoost.discount), ss = s % 60; list.push('СКИДКА 50% ЗА РЕКЛАМУ ' + Math.floor(s / 60) + ':' + (ss < 10 ? '0' : '') + ss); }   // the free 50% discount, with its time left
     return list;
   }
   // the bonus row at the height of КЛИКАЙ, centred under it: the framed button with the number of active bonuses (0 when none),
@@ -798,7 +799,6 @@
     const mult = multiplierBonus();
     const multText = mult > 1 ? 'Х' + mult : '';
     drawTopButton(String(n), MENU_BTN_X, MENU_BTN_X + MENU_BTN_W, y0, y1);   // the same frame as the top buttons
-    if (multText) drawText(multText, 1, MENU_BTN_X - 4 - textWidth(multText, 1), y0 + 4, accent(), 'left');
   }
   // the menu that opens on that button; a tap anywhere closes it
   let boostMenuOpen = false;
@@ -811,7 +811,8 @@
     fillRect(REB_X0, REB_Y0, 1, REB_Y1 - REB_Y0, COL.panelEdge);
     fillRect(REB_X1 - 1, REB_Y0, 1, REB_Y1 - REB_Y0, COL.panelEdge);
     drawTextBox('АКТИВНЫЕ БОНУСЫ', 1, REB_X0, REB_X1, REB_Y0 + 6, REB_Y0 + 16, COL.text);
-    list.forEach((t, i) => drawText(t, 1, 60, 40 + i * 14, accent(), 'left'));
+    let ly = 40;
+    list.forEach((t) => { ly = drawWrapped(t, 1, 74, ly, 172, accent()) + 4; });   // long lines wrap inside the frame
     settingsButton(74, 126, 246, 138, 'ЗАКРЫТЬ');   // inside the frame, like the other sheets
   }
 
@@ -884,7 +885,11 @@
       return;
     }
     if (m === 'done' || m === 'error') {
-      if (inRect(gx, gy, 74, 126, 246, 138)) premiumWin = null;
+      if (inRect(gx, gy, 74, 126, 246, 138)) {
+        const bought = PREMIUM_ITEMS[premiumWin.idx];
+        premiumWin = null;
+        if (m === 'done' && bought && bought.id.startsWith('skin_')) offerSkin(bought.id.slice(5));
+      }
     }
   }
   // splits a text into lines that fit the width; returns the y under the last line
@@ -1037,7 +1042,7 @@
     const k = SKINS.find((s) => s.id === id);
     if (!k || skinOwned[id]) return;
     skinAdViews[id] = (skinAdViews[id] || 0) + 1;
-    if (skinAdViews[id] >= skinAdNeed(k)) { skinOwned[id] = true; skinAdViews[id] = 0; sfxBuy(); }
+    if (skinAdViews[id] >= skinAdNeed(k)) { skinOwned[id] = true; skinAdViews[id] = 0; sfxBuy(); offerSkin(id); }
     saveGame();
   }
   // the reindeer: it comes out of nothing (transparent to solid), flies across the cookie with its sleigh, and fades away
@@ -1921,6 +1926,33 @@
     settingsButton(74, 126, 246, 138, 'ЗАКРЫТЬ');
   }
 
+  // a new skin: the offer window asks to try it on now or to do it later
+  let skinOffer = null;   // {id} while the offer is open
+  function offerSkin(id) {
+    if (!id || settings.skin === id) return;
+    skinOffer = { id };
+  }
+  function drawSkinOffer() {
+    const k = SKINS.find((s) => s.id === skinOffer.id);
+    fillRect(0, 0, W, H, 'rgba(10, 8, 24, 0.6)');
+    fillRect(REB_X0, REB_Y0, REB_X1 - REB_X0, REB_Y1 - REB_Y0, COL.panel);
+    fillRect(REB_X0, REB_Y0, REB_X1 - REB_X0, 1, COL.panelEdge);
+    fillRect(REB_X0, REB_Y1 - 1, REB_X1 - REB_X0, 1, COL.panelEdge);
+    fillRect(REB_X0, REB_Y0, 1, REB_Y1 - REB_Y0, COL.panelEdge);
+    fillRect(REB_X1 - 1, REB_Y0, 1, REB_Y1 - REB_Y0, COL.panelEdge);
+    drawTextBox('НОВЫЙ СКИН', 1, REB_X0, REB_X1, REB_Y0 + 6, REB_Y0 + 16, accent());
+    const thumb = skinThumbs[k.id];
+    if (thumb && thumb.complete && thumb.naturalWidth) ctx.drawImage(thumb, 160 - 37, 22, 74, 74);
+    drawTextBox(k.name, 1, REB_X0, REB_X1, 99, 107, COL.text);
+    settingsButton(74, 112, 246, 122, 'ПРИМЕРИТЬ');
+    settingsButton(74, 126, 246, 138, 'ПОЗЖЕ');
+  }
+  function handleSkinOfferDown(gx, gy) {
+    const id = skinOffer.id;
+    if (inRect(gx, gy, 74, 112, 246, 122)) { settings.skin = id; loadSkin(id); saveGame(); skinOffer = null; return; }
+    if (inRect(gx, gy, 74, 126, 246, 138)) { skinOffer = null; return; }
+  }
+
   // ---------- progress window: statistics, achievements, leaderboards (VK) ----------
   // achievements in groups: each has a progress value and a goal
   const ACH = [];
@@ -2015,7 +2047,7 @@
     if (!dailyCanClaim()) return;
     const s = dailyNext();
     const skin = SKINS[s.next];                  // day 1 gives skin 2 in the list, ..., day 7 gives skin 8
-    if (skin && !skinOwned[skin.id]) skinOwned[skin.id] = true;   // already owned: nothing to give
+    if (skin && !skinOwned[skin.id]) { skinOwned[skin.id] = true; offerSkin(skin.id); }   // already owned: nothing to give
     dailyDay = s.next;
     dailyDate = mskDate();
     saveGame();
@@ -2454,6 +2486,7 @@
     if (rebirthOpen) { handleRebirthDown(gx, gy - SHEET_DY); return; }      // so does the rebirth window
     if (progWin) { handleProgDown(gx, gy - SHEET_DY); return; }             // and the progress window
     if (skinWin) { handleSkinDown(gx, gy - SHEET_DY); return; }             // and the appearance window
+    if (skinOffer) { handleSkinOfferDown(gx, gy - SHEET_DY); return; }
     if (premiumWin) { handlePremiumWinDown(gx, gy - SHEET_DY); return; }     // and the premium purchase window
     if (boostMenuOpen) { boostMenuOpen = false; return; }          // a tap closes the bonus menu
     if (inRect(gx, lastRawY, MENU_BTN_X, MENU_BTN_Y[0], MENU_BTN_X + MENU_BTN_W, MENU_BTN_Y[1])) { boostMenuOpen = true; return; }   // the framed button opens the menu
@@ -2519,7 +2552,7 @@
     drag.moved = Math.max(drag.moved, Math.abs(dy));
     // list drag: content follows the finger. thumb drag: the thumb moves with the finger, so the list moves the other way.
     // dragging down moves the thumb down (top of the list = thumb at the top), so the list scrolls the other way
-    scroll = drag.s0 + dy * (drag.thumb ? thumbRatio() : 1);
+    scroll = drag.s0 + dy * (drag.thumb ? thumbRatio() : -1);   // the list follows the finger: dragging up moves the list up
     clampScroll();
   });
 
@@ -2926,7 +2959,9 @@
     } else {
       line2 = premiumOwned[it.id] ? 'КУПЛЕНО' : 'СКОРО: ОПЛАТА ГОЛОСАМИ';   // placeholder until payments exist
     }
-    return { line1: it.line, line2, price: it.price.replace('ГОЛОСОВ', 'ГЛ'), can: it.kind === 'ad' };   // the list shows the short form; the purchase window the full one
+    // a free ad that is running shows the time left on the row (the row draws only this line)
+    const left = it.kind === 'ad' && adBoost[it.id] > 0 ? 'ОСТАЛОСЬ ' + Math.ceil(adBoost[it.id] / 60) + ' МИН' : it.line;
+    return { line1: left, line2, price: it.price.replace('ГОЛОСОВ', 'ГЛ'), can: it.kind === 'ad' };   // the list shows the short form; the purchase window the full one
   }
 
   function drawPanel() {
@@ -3236,6 +3271,7 @@
     if (progWin) inSheet(drawProgWin);
     if (skinWin) inSheet(drawSkinWin);
     if (premiumWin) inSheet(drawPremiumWin);
+    if (skinOffer) inSheet(drawSkinOffer);
     if (ev && ev.type === 'appetite') drawAppetite();
     if (boostMenuOpen) inSheet(drawBoostMenu);   // the same place as the other menus: the sheet under the scene
     ctx.restore();
@@ -3360,6 +3396,7 @@
         prokOwned,
         premiumOwned,
         adWatched,
+        adBoost: { double: adBoost.double, discount: adBoost.discount },   // the ad bonuses keep their time left
         rebirths,
         cycleEarned: cycleEarned.toString(),
         totalEarned: totalEarned.toString(),
@@ -3404,6 +3441,7 @@
       if (Array.isArray(s.techOwned) && s.techOwned.length === techOwned.length) techOwned = s.techOwned.map(Number);
       if (Array.isArray(s.prokOwned) && s.prokOwned.length === prokOwned.length) prokOwned = s.prokOwned.map(Boolean);
       if (s.adWatched) adWatched = { double: !!s.adWatched.double, discount: !!s.adWatched.discount };
+      if (s.adBoost) adBoost = { double: Math.max(0, Number(s.adBoost.double) || 0), discount: Math.max(0, Number(s.adBoost.discount) || 0) };
       rebirths = Math.max(0, Math.floor(Number(s.rebirths) || 0));
       totalEarned = BigInt(s.totalEarned || '0');
       playerClicks = Math.max(0, Math.floor(Number(s.playerClicks) || 0));
@@ -3631,6 +3669,14 @@
       const bw = SKIN_BTN[2] - SKIN_BTN[0];
       screenCtx.drawImage(skinBtnCanvas, SKIN_BTN[0], 0, bw, 18, SKIN_BTN[0] - SCENE_CROP_X, 160, bw, 18);
       screenCtx.drawImage(skinBtnCanvas, MENU_BTN_X - 30, 0, MENU_BTN_W + 30, 18, MENU_BTN_X - 30 - SCENE_CROP_X, 160, MENU_BTN_W + 30, 18);
+      // the bonus multiplier (2Х, 3Х...) right above the counter, centred on it, without a box behind it
+      const multTxt = multiplierBonus() > 1 ? 'Х' + multiplierBonus() : '';
+      if (multTxt) {
+        const tw = textWidth(multTxt, 1), cxs = MENU_BTN_X - SCENE_CROP_X + MENU_BTN_W / 2;
+        const keepCtx = ctx; ctx = screenCtx;
+        drawText(multTxt, 1, Math.round(cxs - tw / 2), 149, accent(), 'left');
+        ctx = keepCtx;
+      }
       if (bonyaDraw) screenCtx.drawImage(bonyaDraw, BONYA_X - SCENE_CROP_X, BONYA_Y);
     }
     requestAnimationFrame(frame);
