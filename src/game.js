@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '0.6.80-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '0.6.82-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -788,7 +788,7 @@
   }
   // the bonus row at the height of КЛИКАЙ, centred under it: the framed button with the number of active bonuses (0 when none),
   // then one multiplier for the premium 2x and 3x and the 10-minute ad 2x, multiplied together (for example Х12)
-  const MENU_BTN_W = 20, MENU_BTN_Y = [160, 178];   // right above ПРОГРЕСС (4 px above its row), drawn on the screen
+  const MENU_BTN_W = 18, MENU_BTN_Y = [160, 178];   // right above ПРОГРЕСС (4 px above its row), drawn on the screen
   const MENU_BTN_X = topRect('achievements')[1] - MENU_BTN_W;   // the right edge of ПРОГРЕСС, at the right wall
   function multiplierBonus() {
     return (premiumOwned.double ? 2 : 1) * (premiumOwned.triple ? 3 : 1) * (adBoost.double > 0 ? 2 : 1);
@@ -2435,6 +2435,20 @@
   }
 
   // the whole screen: a tap in the settings asks the browser for it (browsers allow it only after a tap)
+  // the full-screen icon in the bottom left corner of the screen: hidden while any menu is open
+  const FS_BL_X = SCENE_CROP_X + 3, FS_BL_Y = 299, FS_BL_S = 18;   // scene x: the screen shows the scene from SCENE_CROP_X
+  function anyMenuOpenNow() {
+    return settingsOpen || rebirthOpen || panelOpen || !!progWin || skinWin || !!premiumWin || !!skinOffer || boostMenuOpen;
+  }
+  function drawFullScreenIconAt(x, y, s) {
+    fillRect(x, y, s, s, COL.btnFrame);                    // 2 px frame
+    fillRect(x + 2, y + 2, s - 4, s - 4, COL.btnFill);     // inside: the tab colour
+    const L = x + 3, R = x + s - 4, T = y + 3, B = y + s - 4;   // the four brackets, 2 px thick, 1 px from the inner edge
+    fillRect(L, T, 4, 2, COL.btnFrame); fillRect(L, T, 2, 4, COL.btnFrame);
+    fillRect(R - 3, T, 4, 2, COL.btnFrame); fillRect(R - 1, T, 2, 4, COL.btnFrame);
+    fillRect(L, B - 1, 4, 2, COL.btnFrame); fillRect(L, B - 3, 2, 4, COL.btnFrame);
+    fillRect(R - 3, B - 1, 4, 2, COL.btnFrame); fillRect(R - 1, B - 3, 2, 4, COL.btnFrame);
+  }
   function toggleFullScreen() {
     try {
       if (document.fullscreenElement) document.exitFullscreen();
@@ -2482,6 +2496,7 @@
     if (splashT > 0) return;                  // the start screen takes no taps
     startMusicOnce();
     const [gx, gy] = toGame(e);
+    if (!anyMenuOpenNow() && inRect(gx, gy, FS_BL_X, FS_BL_Y, FS_BL_X + FS_BL_S, FS_BL_Y + FS_BL_S)) { toggleFullScreen(); return; }
     if (settingsOpen) { handleSettingsDown(gx, gy - SHEET_DY); return; }   // the settings window blocks everything else
     if (rebirthOpen) { handleRebirthDown(gx, gy - SHEET_DY); return; }      // so does the rebirth window
     if (progWin) { handleProgDown(gx, gy - SHEET_DY); return; }             // and the progress window
@@ -3274,6 +3289,7 @@
     if (skinOffer) inSheet(drawSkinOffer);
     if (ev && ev.type === 'appetite') drawAppetite();
     if (boostMenuOpen) inSheet(drawBoostMenu);   // the same place as the other menus: the sheet under the scene
+    if (!anyMenuOpenNow()) drawFullScreenIconAt(FS_BL_X, FS_BL_Y, FS_BL_S);
     ctx.restore();
   }
 
