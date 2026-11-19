@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '0.6.82-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.216-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -550,10 +550,8 @@
       // placeholders: payments and the ad SDK are not connected yet
       const it = PREMIUM_ITEMS[index];
       if (it.kind === 'ad') {
-        // ad reward placeholder: gives the boost right away, so it can be checked in the game
-        adBoost[it.id] = AD_BOOST_SECONDS;
-        adWatched[it.id] = true;
-        sfxBuy();
+        // the reward comes after the ad is shown (in VK); outside VK it comes at once
+        showRewardAd(() => { adBoost[it.id] = AD_BOOST_SECONDS; adWatched[it.id] = true; sfxBuy(); });
         return true;
       }
       return false;
@@ -1038,7 +1036,21 @@
     });
   }
   // an ad for a skin: the ad SDK is not connected yet, so the view counts right away
+  // the reward ad: in VK it is shown by VK Bridge, and the reward comes only if the ad was shown;
+  // outside VK (testing) the reward comes at once
+  function showRewardAd(onReward) {
+    if (!window.vkBridge) { onReward(); return; }
+    vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward', use_waterfall: true })
+      .then((data) => {
+        if (data && data.result) onReward();
+        else popups.push({ x: 160, y: 100, t: 0, text: 'РЕКЛАМЫ НЕТ' });
+      })
+      .catch(() => popups.push({ x: 160, y: 100, t: 0, text: 'РЕКЛАМА НЕ ПРОШЛА' }));
+  }
   function watchSkinAd(id) {
+    showRewardAd(() => grantSkinView(id));
+  }
+  function grantSkinView(id) {
     const k = SKINS.find((s) => s.id === id);
     if (!k || skinOwned[id]) return;
     skinAdViews[id] = (skinAdViews[id] || 0) + 1;
@@ -2393,9 +2405,9 @@
     fillRect(SET_X1 - 1, SET_Y0, 1, SET_Y1 - SET_Y0, COL.panelEdge);
     drawTextBox('НАСТРОЙКИ', 1, SET_X0, SET_X1, 10, 20, COL.text);
     // the version on the left and the developer on the right, on the same line as the title
-    // the version is fixed at 1.0.195; both texts start and end on the same margins as the settings rows (x 80 and x 240)
-    const verW = textWidth('1.0.195', 1), devW = textWidth('CR4YNE', 1);   // the right edge is 4 px from the frame
-    drawTextBox('1.0.195', 1, 74, 74 + verW, 10, 20, dimTone());
+    // the version is the current one; both texts start and end on the same margins as the settings rows (x 80 and x 240)
+    const verText = VERSION.replace('-PHONE', ''), verW = textWidth(verText, 1), devW = textWidth('CR4YNE', 1);   // the version is always the current one; the right edge is 4 px from the frame
+    drawTextBox(verText, 1, 74, 74 + verW, 10, 20, dimTone());
     drawTextBox('CR4YNE', 1, 246 - devW, 246, 10, 20, dimTone());
     // one row each: the label on the left, the slider or the toggle on the right; rows are 16 px apart
     sliderRow(26, 'ЗВУК', settings.sound);
@@ -2494,6 +2506,11 @@
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (splashT > 0) return;                  // the start screen takes no taps
+    if (infoOpen) {                           // the launch info window: its OK button closes it (scene x, raw screen y)
+      const [ix] = toGame(e);
+      if (inRect(ix, lastRawY, 110, 194, 210, 212)) infoOpen = false;
+      return;
+    }
     startMusicOnce();
     const [gx, gy] = toGame(e);
     if (!anyMenuOpenNow() && inRect(gx, gy, FS_BL_X, FS_BL_Y, FS_BL_X + FS_BL_S, FS_BL_Y + FS_BL_S)) { toggleFullScreen(); return; }
@@ -3506,6 +3523,23 @@
   // ---------- loop ----------
   // the start screen: 1.5 s after each load, with the logo, the game's name and the developer
   let splashT = 2.5;
+  // the launch info window: version, developer, age rating and the development stage; shown after the start screen
+  let infoOpen = true;
+  function drawInfoDialog() {
+    const keep = ctx; ctx = screenCtx;   // drawn on the screen, so the strip under the scene is covered too
+    fillRect(0, 0, PHONE_W, PHONE_H, 'rgba(10, 8, 24, 0.75)');
+    fillRect(14, 98, 152, 124, COL.panel);
+    fillRect(14, 98, 152, 1, COL.panelEdge); fillRect(14, 221, 152, 1, COL.panelEdge);
+    fillRect(14, 98, 1, 124, COL.panelEdge); fillRect(165, 98, 1, 124, COL.panelEdge);
+    drawText('КУЧА ПРЯНИКОВ КЛИКЕР', 1, 90, 110, accent(), 'center');
+    drawText('ВЕРСИЯ ' + VERSION.replace('-PHONE', ''), 1, 90, 126, COL.text, 'center');
+    drawText('РАЗРАБОТЧИК: CR4YNE', 1, 90, 140, COL.text, 'center');
+    drawText('ВОЗРАСТНОЕ', 1, 90, 154, COL.text, 'center');
+    drawText('ОГРАНИЧЕНИЕ 0+', 1, 90, 166, COL.text, 'center');
+    drawText('ИГРА В РАЗРАБОТКЕ', 1, 90, 182, dimTone(), 'center');
+    settingsButton(40, 194, 140, 212, 'ОК');
+    ctx = keep;
+  }
   function drawSplash() {
     const SPLASH_T = 2.5;
     const el = SPLASH_T - splashT;                       // seconds since the start screen began
@@ -3695,6 +3729,7 @@
       }
       if (bonyaDraw) screenCtx.drawImage(bonyaDraw, BONYA_X - SCENE_CROP_X, BONYA_Y);
     }
+    if (splashT <= 0 && infoOpen) drawInfoDialog();   // on top of the finished picture, on the screen
     requestAnimationFrame(frame);
   }
   let fitW = 0, fitH = 0;   // the window size the canvas was last fitted to
