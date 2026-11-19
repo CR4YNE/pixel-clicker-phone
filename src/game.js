@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '0.6.71-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '0.6.72-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -2368,6 +2368,11 @@
     // one row each: the label on the left, the slider or the toggle on the right; rows are 16 px apart
     sliderRow(26, 'ЗВУК', settings.sound);
     sliderRow(42, 'МУЗЫКА', settings.music);
+    // full screen: the toggle sits in the free row between the sliders and the colour-blind row
+    drawText('НА ВЕСЬ ЭКРАН', 1, 74, 50, COL.text, 'left');
+    const fsOn = !!document.fullscreenElement;
+    fillRect(202, 49, 44, 10, fsOn ? '#5c5096' : COL.track);
+    fillRect(fsOn ? 238 : 204, 50, 8, 8, COL.btnText);
     drawText('ДАЛЬТОНИКИ', 1, 74, 62, COL.text, 'left');
     fillRect(202, 61, 44, 10, settings.colorblind ? '#1E5FD1' : COL.track);
     fillRect(settings.colorblind ? 238 : 204, 62, 8, 8, COL.btnText);
@@ -2400,6 +2405,13 @@
     saveGame();
   }
 
+  // the whole screen: a tap in the settings asks the browser for it (browsers allow it only after a tap)
+  function toggleFullScreen() {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+    } catch (err) { /* the browser refused: nothing changes */ }
+  }
   function handleSettingsDown(gx, gy) {
     if (inRect(gx, gy, 74, 126, 246, 138)) { settingsOpen = false; resetStage = 0; panelOpen = shopReturn; shopReturn = false; return; }   // back to the shop only if it was open before
     if (inRect(gx, gy, 198, 76, 248, 90)) { settings.animBg = !settings.animBg; return; }
@@ -2409,6 +2421,7 @@
       if (resetStage >= 3) { resetAll(); resetStage = 0; }
       return;
     }
+    if (inRect(gx, gy, 198, 47, 248, 59)) { toggleFullScreen(); return; }
     if (inRect(gx, gy, 198, 60, 248, 74)) { settings.colorblind = !settings.colorblind; return; }
     if (inRect(gx, gy, 120, 22, 246, 34)) { sliderDrag = 'sound'; setSlider('sound', gx); return; }
     if (inRect(gx, gy, 120, 38, 246, 50)) { sliderDrag = 'music'; setSlider('music', gx); return; }
