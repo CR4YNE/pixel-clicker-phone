@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '0.6.72-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '0.6.73-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -2369,13 +2369,10 @@
     sliderRow(26, 'ЗВУК', settings.sound);
     sliderRow(42, 'МУЗЫКА', settings.music);
     // full screen: the toggle sits in the free row between the sliders and the colour-blind row
-    drawText('НА ВЕСЬ ЭКРАН', 1, 74, 50, COL.text, 'left');
+    drawText('НА ВЕСЬ ЭКРАН', 1, 74, 62, COL.text, 'left');
     const fsOn = !!document.fullscreenElement;
-    fillRect(202, 49, 44, 10, fsOn ? '#5c5096' : COL.track);
-    fillRect(fsOn ? 238 : 204, 50, 8, 8, COL.btnText);
-    drawText('ДАЛЬТОНИКИ', 1, 74, 62, COL.text, 'left');
-    fillRect(202, 61, 44, 10, settings.colorblind ? '#1E5FD1' : COL.track);
-    fillRect(settings.colorblind ? 238 : 204, 62, 8, 8, COL.btnText);
+    fillRect(202, 61, 44, 10, fsOn ? '#5c5096' : COL.track);
+    fillRect(fsOn ? 238 : 204, 62, 8, 8, COL.btnText);
     drawText('АНИМИРОВАННЫЙ ФОН', 1, 74, 78, COL.text, 'left');
     fillRect(202, 77, 44, 10, settings.animBg ? '#5c5096' : COL.track);
     fillRect(settings.animBg ? 238 : 204, 78, 8, 8, COL.btnText);
@@ -2421,8 +2418,7 @@
       if (resetStage >= 3) { resetAll(); resetStage = 0; }
       return;
     }
-    if (inRect(gx, gy, 198, 47, 248, 59)) { toggleFullScreen(); return; }
-    if (inRect(gx, gy, 198, 60, 248, 74)) { settings.colorblind = !settings.colorblind; return; }
+    if (inRect(gx, gy, 198, 60, 248, 74)) { toggleFullScreen(); return; }
     if (inRect(gx, gy, 120, 22, 246, 34)) { sliderDrag = 'sound'; setSlider('sound', gx); return; }
     if (inRect(gx, gy, 120, 38, 246, 50)) { sliderDrag = 'music'; setSlider('music', gx); return; }
   }
@@ -3439,7 +3435,7 @@
       if (s.settings) {
         settings.sound = Math.min(1, Math.max(0, Number(s.settings.sound) || 0));
         settings.music = Math.min(1, Math.max(0, Number(s.settings.music) || 0));
-        settings.colorblind = !!s.settings.colorblind;
+        settings.colorblind = false;   // the colour-blind mode is removed from the settings
         settings.animBg = s.settings.animBg !== false;
         settings.shake = s.settings.shake === true;
         // the chosen skin is remembered, as long as it is still owned
