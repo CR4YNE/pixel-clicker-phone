@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.217-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.234-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -44,7 +44,7 @@
   const listTop = () => (tab === 'premium' ? 66 : LIST_TOP_BASE);
   // the tabs with the buy-amount row (КЛИК, ТЕХНИКА) keep the close button higher; the other tabs get it lower and a bigger list
   const hasBuyRow = () => tab === 'click' || tab === 'tech';
-  const closeY = () => 126;     // the close button: the same level as the close button of the other menus
+  const closeY = () => 124;     // the close button: the same level as the close button of the other menus
   // the list ends above the buy row (107) where there is one; without it (прокачки, премиум) the list takes the space down to the close button
   const listBottom = () => (hasBuyRow() ? 104 : 122);
   const ROW_H = 22;             // two text lines per row, to fit the sheet
@@ -161,7 +161,7 @@
     { kind: 'premium', id: 'skin_easter', name: 'ПАСХАЛЬНЫЙ', line: 'ЯЙЦА И ЛЕПЕСТКИ', price: '7 ГОЛОСОВ' },
     { kind: 'premium', id: 'skin_zefir', name: 'ЗЕФИРНЫЙ', line: 'ОБЛАКО И СЕРДЦА', price: '7 ГОЛОСОВ' },
     { kind: 'premium', id: 'skin_newyear', name: 'НОВОГОДНИЙ', line: 'ЁЛКИ И ОЛЕНЬ', price: '7 ГОЛОСОВ' },
-    { kind: 'premium', id: 'skins_all', name: 'ВСЕ ПРЕМИУМ СКИНЫ', line: 'СЕЙЧАС: 1 СКИН', price: '30 ГОЛОСОВ' },
+    { kind: 'premium', id: 'skins_all', name: 'ВСЕ СКИНЫ', line: 'СЕЙЧАС: 1 СКИН', price: '30 ГОЛОСОВ' },
   ];
   const AD_BOOST_SECONDS = 600;
   // which skin each premium shop item shows in its purchase preview (a new skin: add it here too)
@@ -200,7 +200,7 @@
     skin_easter: { name: 'ПАСХАЛЬНЫЙ', lines: ['ЯЙЦА И ЛЕПЕСТКИ', 'НАВСЕГДА'] },
     skin_solar: { name: 'СОЛНЕЧНАЯ СИСТЕМА', lines: ['8 ПЛАНЕТ ВОКРУГ', 'НАВСЕГДА'] },
     skin_sea: { name: 'МОРСКОЙ', lines: ['ПУЗЫРИ И РЫБКА', 'НАВСЕГДА'] },
-    skins_all: { name: 'ВСЕ ПРЕМИУМ СКИНЫ', lines: ['СРАЗУ ВСЕ СКИНЫ', 'ВСЕ 16 ПРЯНИКОВ'] },
+    skins_all: { name: 'ВСЕ СКИНЫ', lines: ['ВЕСЬ АССОРТИМЕНТ СКИНОВ', 'НАВСЕГДА'] },   // the count of premium skins is shown in the purchase window
   };
   // for each technika, the global PROKACHKI indexes of its 4 upgrades (level 1..4)
   const PROK_BY_TECH = TECHNIKA.map((_, j) => PROKACHKI.map((p, g) => (p.tech === j ? g : -1)).filter((g) => g >= 0));
@@ -811,7 +811,7 @@
     drawTextBox('АКТИВНЫЕ БОНУСЫ', 1, REB_X0, REB_X1, REB_Y0 + 6, REB_Y0 + 16, COL.text);
     let ly = 40;
     list.forEach((t) => { ly = drawWrapped(t, 1, 74, ly, 172, accent()) + 4; });   // long lines wrap inside the frame
-    settingsButton(74, 126, 246, 138, 'ЗАКРЫТЬ');   // inside the frame, like the other sheets
+    settingsButton(74, 124, 246, 136, 'ЗАКРЫТЬ');   // inside the frame, like the other sheets
   }
 
   // ---------- quest window ----------
@@ -878,7 +878,7 @@
   function handlePremiumWinDown(gx, gy) {
     const m = premiumWin.mode;
     if (m === 'confirm') {
-      if (inRect(gx, gy, 74, 102, 246, 114)) startPremiumPurchase();
+      if (inRect(gx, gy, 74, 112, 246, 124)) startPremiumPurchase();
       else if (inRect(gx, gy, 74, 126, 246, 138)) premiumWin = null;
       return;
     }
@@ -902,14 +902,19 @@
     if (cur) lines.push(cur);
     return lines;
   }
-  function drawWrapped(str, sc, x, y, maxW, color) {
+  function drawWrapped(str, sc, x, y, maxW, color, step = 10) {
     for (const line of wrapText(str, sc, maxW)) {
       drawText(line, sc, x, y, color, 'left');
-      y += 10;
+      y += step;
     }
     return y;
   }
   // the purchase window: a sheet in the frame, the picture on the left and the text beside it
+  // the premium skins in the order of the appearance window; the picture changes every 3 seconds
+  function premiumSkinCycle() {
+    const list = SKINS.filter((k) => k.premium).map((k) => k.id);
+    return list[Math.floor(performance.now() / 3000) % list.length];
+  }
   function drawPremiumWin() {
     fillRect(0, 0, W, H, 'rgba(10, 8, 24, 0.6)');
     fillRect(REB_X0, REB_Y0, REB_X1 - REB_X0, REB_Y1 - REB_Y0, COL.panel);
@@ -922,10 +927,10 @@
     const m = premiumWin.mode;
     if (m === 'confirm' || m === 'pending') {
       drawTextBox('ПОКУПКА', 1, REB_X0, REB_X1, 10, 20, COL.text);
-      const previewSkin = PREMIUM_SKIN_OF[it.id];
+      const previewSkin = it.id === 'skins_all' ? premiumSkinCycle() : PREMIUM_SKIN_OF[it.id];   // the bundle cycles through all premium skins
       const isSkin = !!previewSkin;
       // a skin item shows the skin itself on the left: the neon one glows, pulsing
-      const tx = isSkin ? 152 : 74;
+      const tx = isSkin ? 152 : 76;
       if (isSkin) {
         const thumb = skinThumbs[previewSkin];
         const glow = 0.5 + 0.5 * Math.sin(cookT * 3);
@@ -941,34 +946,36 @@
       }
       // the text wraps inside the frame: beside the picture it is 94 px wide, otherwise 172 px
       const maxW = 246 - tx;
-      let y = drawWrapped(info.name, 1, tx, 26, maxW, accent());
-      y = drawWrapped('ЧТО ДАЁТ:', 1, tx, y + 2, maxW, dimTone());
-      y = drawWrapped(info.lines[0], 1, tx, y, maxW, COL.text);
-      drawWrapped(info.lines[1], 1, tx, y, maxW, COL.text);
+      // the lines of the text are 4 px apart (a 7 px line and a 4 px gap: the step is 11)
+      let y = drawWrapped(info.name, 1, tx, 26, maxW, accent(), 11);
+      y = drawWrapped('ЧТО ДАЁТ:', 1, tx, y, maxW, dimTone(), 11);
+      const line0 = info.lines[0];   // the whole range of skins
+      y = drawWrapped(line0, 1, tx, y, maxW, COL.text, 11);
+      drawText(info.lines[1], 1, tx, 93, accent(), 'left');   // НАВСЕГДА: yellow, about where the white line is (above the buy button, which starts at 112)
       if (m === 'confirm') {
-        settingsButton(74, 102, 246, 114, 'КУПИТЬ ЗА ' + it.price);
+        settingsButton(74, 112, 246, 124, 'КУПИТЬ ЗА ' + it.price);   // right above ОТМЕНА
         settingsButton(74, 126, 246, 138, 'ОТМЕНА');
       } else {
-        drawTextBox('ОПЛАТА...', 1, 74, 246, 102, 114, COL.text);
+        drawTextBox('ОПЛАТА...', 1, 74, 246, 112, 124, COL.text);
       }
       return;
     }
     if (m === 'done') {
       drawTextBox('КУПЛЕНО', 1, REB_X0, REB_X1, 10, 20, accent());
-      drawText('НАЗВАНИЕ:', 1, 74, 26, dimTone(), 'left');
-      drawText(info.name, 1, 74, 36, COL.text, 'left');
-      drawText('ДЕЙСТВИЕ:', 1, 74, 48, dimTone(), 'left');
-      drawText(info.lines[0], 1, 74, 58, COL.text, 'left');
-      drawText(info.lines[1], 1, 74, 68, COL.text, 'left');
-      drawText('ТЕПЕРЬ У ВАС НАВСЕГДА', 1, 74, 84, accent(), 'left');
+      drawText('НАЗВАНИЕ:', 1, 76, 26, dimTone(), 'left');
+      drawText(info.name, 1, 76, 36, COL.text, 'left');
+      drawText('ДЕЙСТВИЕ:', 1, 76, 48, dimTone(), 'left');
+      drawText(info.lines[0], 1, 76, 58, COL.text, 'left');
+      drawText(info.lines[1], 1, 76, 68, COL.text, 'left');
+      drawText('ТЕПЕРЬ У ВАС НАВСЕГДА', 1, 76, 84, accent(), 'left');
       settingsButton(74, 126, 246, 138, 'ОК');
       return;
     }
     // error
     drawTextBox('ОШИБКА', 1, REB_X0, REB_X1, 10, 20, COL.text);
-    drawText(info.name, 1, 74, 26, COL.text, 'left');
-    drawText(premiumWin.msg || 'ПОКУПКА НЕ ПРОШЛА', 1, 74, 46, COL.text, 'left');
-    drawText('ПОПРОБУЙТЕ ПОЗЖЕ', 1, 74, 58, dimTone(), 'left');
+    drawText(info.name, 1, 76, 26, COL.text, 'left');
+    drawText(premiumWin.msg || 'ПОКУПКА НЕ ПРОШЛА', 1, 76, 46, COL.text, 'left');
+    drawText('ПОПРОБУЙТЕ ПОЗЖЕ', 1, 76, 58, dimTone(), 'left');
     settingsButton(74, 126, 246, 138, 'ОК');
   }
 
@@ -1018,10 +1025,10 @@
         skinPreview = null;
         return;
       }
-      if (inRect(gx, gy, 74, 126, 246, 138)) skinPreview = null;            // НАЗАД to the list
+      if (inRect(gx, gy, 74, 124, 246, 136)) skinPreview = null;            // НАЗАД to the list
       return;
     }
-    if (inRect(gx, gy, 74, 126, 246, 138)) {                                                      // ЗАКРЫТЬ
+    if (inRect(gx, gy, 74, 124, 246, 136)) {                                                      // ЗАКРЫТЬ
       skinWin = false;
       skinPreview = null;
       panelOpen = shopReturn;
@@ -1883,7 +1890,7 @@
         settingsButton(165, 110, 246, 122, 'В НАГРАДАХ');
       }
     }
-    settingsButton(74, 126, 246, 138, 'НАЗАД');
+    settingsButton(74, 124, 246, 136, 'НАЗАД');
   }
   // the skin pictures grid: 4 across, 32 px pictures; the rows scroll inside their area, with a slider on the right
   const SKIN_CELL = 32, SKIN_COLS = 4, SKIN_ROW_H = 38;
@@ -1935,7 +1942,7 @@
       const ty = SKIN_TOP + Math.round((SKIN_BOT - SKIN_TOP - th) * (skinScroll / maxS));
       fillRect(241, ty, 3, th, accent());
     }
-    settingsButton(74, 126, 246, 138, 'ЗАКРЫТЬ');
+    settingsButton(74, 124, 246, 136, 'ЗАКРЫТЬ');
   }
 
   // a new skin: the offer window asks to try it on now or to do it later
@@ -2023,7 +2030,7 @@
       if (dailyPreview) {
         // in the preview only НАЗАД works here; the window's ЗАКРЫТЬ below still closes it
         if (inRect(gx, gy, 74, 126, 158, 138)) { dailyPreview = null; return; }
-        if (inRect(gx, gy, 162, 126, 246, 138)) { progWin = null; panelOpen = shopReturn; shopReturn = false; return; }   // the preview's own ЗАКРЫТЬ
+        if (inRect(gx, gy, 162, 124, 246, 136)) { progWin = null; panelOpen = shopReturn; shopReturn = false; return; }   // the preview's own ЗАКРЫТЬ
       } else {
         const cellW = 22, cellGap = 1, x0 = Math.round((W - (7 * cellW + 6 * cellGap)) / 2);
         for (let k = 1; k <= 7; k++) {
@@ -2076,8 +2083,8 @@
     const thumb = skinThumbs[skin.id];
     if (thumb && thumb.complete && thumb.naturalWidth) ctx.drawImage(thumb, 160 - 37, 48, 74, 74);
     // the two buttons at the very bottom of the window: НАЗАД on the left, ЗАКРЫТЬ on the right
-    settingsButton(74, 126, 158, 138, 'НАЗАД');
-    settingsButton(162, 126, 246, 138, 'ЗАКРЫТЬ');
+    settingsButton(74, 124, 158, 136, 'НАЗАД');
+    settingsButton(162, 124, 246, 136, 'ЗАКРЫТЬ');
   }
   function drawDaily() {
     if (dailyPreview) { drawDailyPreview(); return; }
@@ -2185,7 +2192,7 @@
       drawText(String(mins), 1, 246 - textWidth(String(mins), 1), 60, accent(), 'left');
       settingsButton(74, 84, 246, 98, 'ОТКРЫТЬ ТАБЛИЦУ');
     }
-    if (!(progWin.tab === 'daily' && dailyPreview)) settingsButton(74, 126, 246, 138, 'ЗАКРЫТЬ');
+    if (!(progWin.tab === 'daily' && dailyPreview)) settingsButton(74, 124, 246, 136, 'ЗАКРЫТЬ');
   }
 
   // ---------- rebirth window ----------
@@ -2220,7 +2227,7 @@
     drawText('РЕКЛАМА, НАСТРОЙКИ', 1, 74, 78, COL.text, 'left');
     drawText('НАКОПЛЕНО: ' + fmt(cycleEarned) + '/' + fmt(need), 1, 74, 88, ready ? accent() : COL.text, 'left');
     settingsButton(74, 110, 246, 122, rebirthLabel());   // the same spacing as in the settings: 4 px to the close button
-    settingsButton(74, 126, 246, 138, 'ЗАКРЫТЬ');
+    settingsButton(74, 124, 246, 136, 'ЗАКРЫТЬ');
   }
 
   // short form for the shop: from millions 1.01М, billions МЛД, trillions ТРЛ. The top counter is not shortened.
@@ -2424,7 +2431,7 @@
     fillRect(202, 93, 44, 10, settings.shake ? '#5c5096' : COL.track);
     fillRect(settings.shake ? 238 : 204, 94, 8, 8, COL.btnText);
     settingsButton(74, 110, 246, 122, ['СБРОС ПРОГРЕССА', 'ТОЧНО СБРОСИТЬ', 'ТОЧНО ЭТО НЕОБРАТИМО'][resetStage]);
-    settingsButton(74, 126, 246, 138, 'ЗАКРЫТЬ');
+    settingsButton(74, 124, 246, 136, 'ЗАКРЫТЬ');
   }
 
   function setSlider(name, gx) {
@@ -2508,7 +2515,7 @@
     if (splashT > 0) return;                  // the start screen takes no taps
     if (infoOpen) {                           // the launch info window: its OK button closes it (scene x, raw screen y)
       const [ix] = toGame(e);
-      if (inRect(ix, lastRawY, 110, 206, 210, 224)) infoOpen = false;
+      if (inRect(ix, lastRawY, 85, 218, 235, 236)) infoOpen = false;
       return;
     }
     startMusicOnce();
@@ -3393,7 +3400,7 @@
     musicStarted = true;
     const ctx = ensureAudio();
     if (!ctx) return;
-    trackIdx = 0;                           // the main theme starts the game
+    trackIdx = Math.floor(Math.random() * TRACKS.length);   // a random track at every launch
     playTrack(trackIdx, 1);
   }
 
@@ -3528,18 +3535,22 @@
   function drawInfoDialog() {
     const keep = ctx; ctx = screenCtx;   // drawn on the screen, so the strip under the scene is covered too
     fillRect(0, 0, PHONE_W, PHONE_H, 'rgba(10, 8, 24, 0.75)');
-    fillRect(14, 86, 152, 148, COL.panel);
-    fillRect(14, 86, 152, 1, COL.panelEdge); fillRect(14, 233, 152, 1, COL.panelEdge);
-    fillRect(14, 86, 1, 148, COL.panelEdge); fillRect(165, 86, 1, 148, COL.panelEdge);
-    drawText('КУЧА ПРЯНИКОВ КЛИКЕР', 1, 90, 98, accent(), 'center');
-    drawText('ВЕРСИЯ ' + VERSION.replace('-PHONE', ''), 1, 90, 114, COL.text, 'center');
-    drawText('РАЗРАБОТЧИК: CR4YNE', 1, 90, 128, COL.text, 'center');
-    drawText('ВОЗРАСТНОЕ', 1, 90, 142, COL.text, 'center');
-    drawText('ОГРАНИЧЕНИЕ 0+', 1, 90, 154, COL.text, 'center');
-    drawText('ИГРА В РАЗРАБОТКЕ', 1, 90, 170, dimTone(), 'center');
-    drawText('ИГРОВОЙ ПРОЦЕСС', 1, 90, 184, dimTone(), 'center');
-    drawText('МОЖЕТ БЫТЬ ИЗМЕНЁН', 1, 90, 196, dimTone(), 'center');
-    settingsButton(40, 206, 140, 224, 'ОК');
+    fillRect(14, 84, 152, 154, COL.panel);
+    fillRect(14, 84, 152, 1, COL.panelEdge); fillRect(14, 237, 152, 1, COL.panelEdge);
+    fillRect(14, 84, 1, 154, COL.panelEdge); fillRect(165, 84, 1, 154, COL.panelEdge);
+    // the title stands a little apart; all the other lines are 14 px apart, and so is the button under the last one
+    drawText('КУЧА ПРЯНИКОВ КЛИКЕР', 1, 90, 96, accent(), 'center');
+    const lines = [
+      ['ВЕРСИЯ ' + VERSION.replace('-PHONE', ''), COL.text],
+      ['РАЗРАБОТЧИК: CR4YNE', COL.text],
+      ['ВОЗРАСТНОЕ', COL.text],
+      ['ОГРАНИЧЕНИЕ 0+', COL.text],
+      ['ИГРА В РАЗРАБОТКЕ', dimTone()],
+      ['ИГРОВОЙ ПРОЦЕСС', dimTone()],
+      ['МОЖЕТ БЫТЬ ИЗМЕНЁН', dimTone()],
+    ];
+    lines.forEach(([t, col], i) => drawText(t, 1, 22, 115 + i * 14, col, 'left'));   // the text starts at the left edge of the window
+    settingsButton(15, 218, 165, 236, 'ОК');   // the full width of the window, 1 px above the bottom border
     ctx = keep;
   }
   function drawSplash() {
