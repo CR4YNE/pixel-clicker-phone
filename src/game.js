@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.309-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.319-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -621,6 +621,8 @@
   }
 
   function spawnClick(gx, gy) {
+    // tired: the cookie does not count until the player rests
+    if (restDue) { popups.push({ x: gx, y: gy - 10, t: 0, text: 'ОТДОХНИТЕ' }); return; }
     sfxClick();
     const gain = clickGain() * (glazeClick > 0 ? 2n : 1n);
     coins += gain;
@@ -751,7 +753,7 @@
   function updateMinute(dt) {
     minuteLeft = Math.max(0, minuteLeft - dt);
     const perClick = clickGain() * (glazeClick > 0 ? 2n : 1n);
-    if (premiumOwned.autoclick) {
+    if (premiumOwned.autoclick && !restDue) {
       // the auto-click bonus: ten taps a second, each one paying out like a tap of the player
       autoTapAcc += 10 * dt;
       while (autoTapAcc >= 1) {
@@ -1095,26 +1097,32 @@
     }
     rewardAdReadyAt = now + 60000;
     if (!window.vkBridge) { onReward(); return; }
+    rewardAdOpen = true;
     vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward', use_waterfall: true })
       .then((data) => {
+        rewardAdOpen = false;
         if (data && data.result) onReward();
         else { rewardAdReadyAt = 0; popups.push({ x: 160, y: 100, t: 0, text: 'РЕКЛАМЫ НЕТ' }); }
       })
-      .catch(() => { rewardAdReadyAt = 0; popups.push({ x: 160, y: 100, t: 0, text: 'РЕКЛАМА НЕ ПРОШЛА' }); });
+      .catch(() => { rewardAdOpen = false; rewardAdReadyAt = 0; popups.push({ x: 160, y: 100, t: 0, text: 'РЕКЛАМА НЕ ПРОШЛА' }); });
   }
-  // the full-screen ad: on a rebirth, and every 7 minutes of play. The play timer stops while an ad is on the screen.
-  const AD_PLAY_SECONDS = 420;     // 7 minutes of play between timed ads
-  let adPlayAcc = 0;               // seconds of play since the last timed ad; a rebirth or reward ad does not reset it
+  // the full-screen ad: only on a rebirth, during the loading screen (no timed ads during play)
   let adOpen = false;              // a full-screen ad is on the screen now
+  let rewardAdOpen = false;        // a rewarded ad is on the screen now (it does not count toward the rest timer)
+  let restAcc = 0;                 // seconds of play since the last rest (ads and the loading screen do not count)
+  let restDue = false;             // the rest button is shown under the shop
+  const REST_EVERY = 600;          // 10 minutes of play between rests
   let loadingLeft = 0;             // seconds the loading screen stays up
+  let loadingLabel = 'ВЫ ПЕРЕРОЖДАЕТЕСЬ...';   // its title: the rebirth, or СОН... on a rest
   // the loading screen: shown before the full-screen ad, so the ad comes during an explicit loading
   function startLoading() {
+    loadingLabel = 'ВЫ ПЕРЕРОЖДАЕТЕСЬ...';
     loadingLeft = 2.5;
     showFullScreenAd();
   }
   function drawLoading() {
     fillRect(0, 0, W, H, 'rgba(10, 8, 24, 0.85)');
-    drawTextBox('ЗАГРУЗКА', 1, 0, W, H / 2 - 16, H / 2 - 6, COL.text);
+    drawTextBox(loadingLabel, 1, 0, W, H / 2 - 16, H / 2 - 6, COL.text);
     const p = Math.min(1, (2.5 - loadingLeft) / 2.5);
     fillRect(W / 2 - 60, H / 2 + 6, 120, 4, COL.btnFrame);
     fillRect(W / 2 - 60, H / 2 + 6, Math.round(120 * p), 4, accent());
@@ -2522,7 +2530,7 @@
   let consentOpen = !consentAccepted();
   let consentChecked = false;
   const CX0 = SET_X0 + 2, CX1 = SET_X1 - 2;
-  const CON = { t1: 25, b1: [37, 61], b2: [65, 89], box: [98, 0], go: [122, 134] };
+  const CON = { t1: 24, b1: [35, 57], b2: [60, 82], box: [88, 0], info: 102, go: [123, 134] };
   // a button with two centred lines of text (the long document names do not fit on one line of the phone window)
   function labelButton(x0, y0, x1, y1, l1, l2) {
     fillRect(x0, y0, x1 - x0, y1 - y0, COL.row);
@@ -2541,6 +2549,9 @@
     fillRect(CX0 + 1, CON.box[0] + 1, 8, 8, COL.row);
     if (consentChecked) fillRect(CX0 + 3, CON.box[0] + 3, 4, 4, COL.emblem);
     drawText('ПРИНИМАЮ ДОКУМЕНТЫ', 1, CX0 + 16, CON.box[0] + 1, COL.text, 'left');
+    // the version, the age rating and the developer, centred under the tick box (they were in the launch window before)
+    const info = ['ВЕРСИЯ: ' + VERSION.replace('-PHONE', '') + '  ВОЗРАСТ: 0+', 'РАЗРАБОТЧИК: CR4YNE'];
+    info.forEach((t, i) => drawText(t, 1, Math.round((SET_X0 + SET_X1) / 2), CON.info + i * 10, dimTone(), 'center'));
     // the continue button: lit only after the tick box
     fillRect(CX0, CON.go[0], CX1 - CX0, CON.go[1] - CON.go[0], consentChecked ? COL.btnFrame : COL.panelEdge);
     fillRect(CX0 + 2, CON.go[0] + 2, CX1 - CX0 - 4, CON.go[1] - CON.go[0] - 4, consentChecked ? COL.btnFill : COL.row);
@@ -2731,11 +2742,6 @@
     e.preventDefault();
     if (splashT > 0) return;                  // the start screen takes no taps
     if (consentOpen) { const [cgx, cgy] = toGame(e); handleConsentDown(cgx, cgy - SHEET_DY); return; }   // the first-launch window comes before the info window
-    if (infoOpen) {                           // the launch info window: its OK button closes it (scene x, raw screen y)
-      const [ix] = toGame(e);
-      if (inRect(ix, lastRawY, 85, 218, 235, 236)) infoOpen = false;
-      return;
-    }
     startMusicOnce();
     const [gx, gy] = toGame(e);
     // with a menu open the cookie still counts: the menus are drawn lower down (from y 182), the cookie is above them
@@ -2755,6 +2761,7 @@
     countBonyaPokes(gx, gy);
     if (tapBonyaBubble(gx, gy)) return;
     if (tapBonya(gx, gy)) return;                                 // the sleeping rabbit by the cake
+    if (restDue && !anyMenuOpenNow() && inRect(gx, gy, REST_X0, REST_Y0, REST_X1, REST_Y1)) { startRest(); return; }
     const shopSheetOpen = panelOpen && panelT > 0.99;   // while the shop sheet is open, the buttons under it are not reachable
     if (!shopSheetOpen && inRect(gx, gy, GEAR_X0, GEAR_Y0, GEAR_X1, GEAR_Y1)) { closeMenus('settings'); settingsOpen = true; return; }
     // shop controls (only when the panel is fully open)
@@ -2989,10 +2996,10 @@
       if (bonyaZs[i] >= BONYA_Z_LIFE) bonyaZs.splice(i, 1);
     }
     playSec += dt;
-    // the timed ad: counts only while play goes on (not while an ad is open) and never with the ad-free purchase
-    if (!premiumOwned.noads && !adOpen) {
-      adPlayAcc += dt;
-      if (adPlayAcc >= AD_PLAY_SECONDS) { adPlayAcc = 0; startLoading(); }
+    // the rest: every 10 minutes of play the rest button appears under the shop; ads and the loading screen do not count
+    if (!restDue && !adOpen && !rewardAdOpen && loadingLeft <= 0) {
+      restAcc += dt;
+      if (restAcc >= REST_EVERY) { restDue = true; popups.push({ x: 160, y: 100, t: 0, text: 'ВЫ УСТАЛИ' }); }
     }
     const today = mskDate();
     if (dailySecDate !== today) { dailySecDate = today; dailySec = 0; }
@@ -3007,7 +3014,7 @@
     else if (panelT > target) panelT = Math.max(target, panelT - step);
 
     // generators
-    const perSec = autoPerSec();
+    const perSec = restDue ? 0 : autoPerSec();   // no passive income while tired
     if (perSec > 0) {
       autoAcc += perSec * dt;
       const whole = Math.floor(autoAcc);
@@ -3129,7 +3136,7 @@
   }
   // the bubble bobs up and down by about a pixel with her breathing, and its tail reaches her head
   function bonyaBubbleBox() {
-    const l1 = '2Х МОНЕТЫ ЗА РЕКЛАМУ', l2 = 'МОЖНО НАЖАТЬ';
+    const l1 = '2Х ДОХОД ЗА РЕКЛАМУ', l2 = 'МОЖНО НАЖАТЬ';
     const w = Math.max(textWidth(l1, 1), textWidth(l2, 1)) + 8;
     const bob = Math.round(Math.sin(cookT * 8.8));   // 4 times faster than before
     const x0 = Math.round(160 - w / 2);   // the centre of the screen (the scene is 320 px wide)
@@ -3171,6 +3178,21 @@
   }
 
   // closed-state shop button: light silver frame, dark fill, top right
+  // the rest button: one row under the shop button, the same width (it appears when the 10 minutes of play are up)
+  const REST_Y0 = BTN_Y1 + 4, REST_Y1 = REST_Y0 + PHONE_BTN_H;
+  // wide: from the left edge of the rebirth button to the right edge of the shop button
+  const REST_X0 = topRect('rebirth')[0], REST_X1 = BTN_X1;
+  function drawRestButton() {
+    drawTopButton('ВЫ УСТАЛИ, ПОСПИТЕ (КЛИК)', REST_X0, REST_X1, REST_Y0, REST_Y1);
+  }
+  // the loading screen, as on a rebirth; the full-screen ad is shown on it (not with the ad-free purchase)
+  function startRest() {
+    restDue = false;
+    restAcc = 0;
+    loadingLabel = 'СОН...';
+    loadingLeft = 2.5;
+    if (!premiumOwned.noads) showFullScreenAd();
+  }
   function drawShopButton() {
     const x = BTN_X0, y = BTN_Y0;
     const w = BTN_X1 - BTN_X0, h = BTN_Y1 - BTN_Y0;
@@ -3404,7 +3426,7 @@
     fillRect(x0, y0, 1, y1 - y0, accent());
     fillRect(x1 - 1, y0, 1, y1 - y0, accent());
     const tx = Math.round((x0 + x1) / 2);
-    drawText('2Х МОНЕТЫ ЗА РЕКЛАМУ', 1, tx, y0 + 4, accent(), 'center');
+    drawText('2Х ДОХОД ЗА РЕКЛАМУ', 1, tx, y0 + 4, accent(), 'center');
     drawText('МОЖНО НАЖАТЬ', 1, tx, y0 + 13, COL.text, 'center');
   }
   // the Z letters: a little pixel Z rising from her head and fading out
@@ -3574,6 +3596,7 @@
     if (loadingLeft > 0) drawLoading();
     if (consentOpen) { inSheet(drawConsent); if (docsOpen >= 0) inSheet(drawDocReader); }   // the first-launch window is the top layer
     if (boostMenuOpen) inSheet(drawBoostMenu);   // the same place as the other menus: the sheet under the scene
+    if (restDue && !anyMenuOpenNow() && !consentOpen && loadingLeft <= 0) drawRestButton();
     if (!anyMenuOpenNow() && !consentOpen && document.fullscreenEnabled) drawFullScreenIconAt(FS_BL_X, FS_BL_Y, FS_BL_S);   // only where the browser allows fullscreen
     ctx.restore();
   }
@@ -3798,6 +3821,8 @@
         dailySecDate,
         totalBought,
         settings,
+        restAcc: Math.floor(restAcc),
+        restDue,
         savedAt: Date.now(),
       }));
       vkSaveSoon();
@@ -3863,6 +3888,9 @@
           skin_starry: !!s.premiumOwned.skin_starry,
         };
       }
+      // the rest timer: the play time left before the rest button (saved)
+      restAcc = Math.max(0, Math.min(REST_EVERY, Number(s.restAcc) || 0));
+      restDue = !!s.restDue || restAcc >= REST_EVERY;
       if (s.settings) {
         settings.sound = Math.min(1, Math.max(0, Number(s.settings.sound) || 0));
         settings.music = Math.min(1, Math.max(0, Number(s.settings.music) || 0));
@@ -3892,29 +3920,6 @@
   // ---------- loop ----------
   // the start screen: 1.5 s after each load, with the logo, the game's name and the developer
   let splashT = 2.5;
-  // the launch info window: version, developer, age rating and the development stage; shown after the start screen
-  let infoOpen = true;
-  function drawInfoDialog() {
-    const keep = ctx; ctx = screenCtx;   // drawn on the screen, so the strip under the scene is covered too
-    fillRect(0, 0, PHONE_W, PHONE_H, 'rgba(10, 8, 24, 0.75)');
-    fillRect(14, 84, 152, 154, COL.panel);
-    fillRect(14, 84, 152, 1, COL.panelEdge); fillRect(14, 237, 152, 1, COL.panelEdge);
-    fillRect(14, 84, 1, 154, COL.panelEdge); fillRect(165, 84, 1, 154, COL.panelEdge);
-    // the title stands a little apart; all the other lines are 14 px apart, and so is the button under the last one
-    drawText('КУЧА ПРЯНИКОВ КЛИКЕР', 1, 90, 96, accent(), 'center');
-    const lines = [
-      ['ВЕРСИЯ: ' + VERSION.replace('-PHONE', ''), COL.text],
-      ['РАЗРАБОТЧИК: CR4YNE', COL.text],
-      ['ВОЗРАСТНОЕ', COL.text],
-      ['ОГРАНИЧЕНИЕ: 0+', COL.text],
-      ['ИГРА В РАЗРАБОТКЕ', dimTone()],
-      ['ИГРОВОЙ ПРОЦЕСС', dimTone()],
-      ['МОЖЕТ БЫТЬ ИЗМЕНЁН', dimTone()],
-    ];
-    lines.forEach(([t, col], i) => drawText(t, 1, 22, 115 + i * 14, col, 'left'));   // the text starts at the left edge of the window
-    settingsButton(15, 218, 165, 236, 'ОК');   // the full width of the window, 1 px above the bottom border
-    ctx = keep;
-  }
   function drawSplash() {
     const SPLASH_T = 2.5;
     const el = SPLASH_T - splashT;                       // seconds since the start screen began
@@ -4104,7 +4109,6 @@
       }
       if (bonyaDraw) screenCtx.drawImage(bonyaDraw, BONYA_X - SCENE_CROP_X, BONYA_Y);
     }
-    if (splashT <= 0 && infoOpen && !consentOpen) drawInfoDialog();   // the first-launch window is shown first   // on top of the finished picture, on the screen
     requestAnimationFrame(frame);
   }
   let fitW = 0, fitH = 0;   // the window size the canvas was last fitted to
