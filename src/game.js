@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.320-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.321-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -2513,7 +2513,7 @@
     drawText('ТРЯСКА ЭКРАНА', 1, 74, 82, COL.text, 'left');
     fillRect(202, 81, 44, 10, settings.shake ? '#5c5096' : COL.track);
     fillRect(settings.shake ? 238 : 204, 82, 8, 8, COL.btnText);
-    settingsButton(74, 96, 246, 108, ['СБРОС ПРОГРЕССА', 'ТОЧНО СБРОСИТЬ', 'ТОЧНО ЭТО НЕОБРАТИМО'][resetStage]);
+    settingsButton(74, 96, 246, 108, ['СБРОС ПРОГРЕССА', 'ТОЧНО СБРОСИТЬ?', 'ТОЧНО? ЭТО НЕОБРАТИМО!'][resetStage]);
     // the support and documents tabs, and the close button under them
     settingsButton(74, 110, 160, 122, 'ПОДДЕРЖКА');
     settingsButton(164, 110, 246, 122, 'ДОКУМЕНТЫ');
