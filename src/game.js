@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.278-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.296-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -51,6 +51,28 @@
   const PANEL_SPEED = 7;        // 1 = full slide per ~0.15 s
   const COST_GROWTH = 1.2;     // price = base * 1.15^owned
 
+  // the Latin letters of the e-mails: added to the game's pixel font in the same 6 by 8 style
+  const LATIN_GLYPHS = {
+    '@': ["..####", "##....", "##..##", "##..##", "##..##", "##....", "..####", "......"],
+    'G': ["..####", "##....", "##....", "##..##", "##..##", "##..##", "##..##", "..####"],
+    'A': ["..##..", "##..##", "##..##", "######", "##..##", "##..##", "##..##", "##..##"],
+    'I': ["######", "..##..", "..##..", "..##..", "..##..", "..##..", "..##..", "######"],
+    'L': ["##....", "##....", "##....", "##....", "##....", "##....", "##....", "######"],
+    'B': ["####..", "##..##", "##..##", "####..", "##..##", "##..##", "##..##", "####.."],
+    'K': ["##..##", "##..##", "####..", "##....", "####..", "##..##", "##..##", "##..##"],
+    'D': ["####..", "##..##", "##..##", "##..##", "##..##", "##..##", "##..##", "####.."],
+    'Z': ["######", "....##", "..##..", "..##..", "..##..", "##....", "######", "......"],
+    'O': ["..##..", "##..##", "##..##", "##..##", "##..##", "##..##", "##..##", "..##.."],
+    'S': ["..####", "##....", "##....", "..##..", "....##", "....##", "####..", "......"],
+    'M': ["##..##", "######", "######", "##..##", "##..##", "##..##", "##..##", "##..##"],
+    'V': ["##..##", "##..##", "##..##", "##..##", "##..##", "##..##", "..##..", "..##.."],
+    'P': ["####..", "##..##", "##..##", "####..", "##....", "##....", "##....", "##...."],
+    'T': ["######", "..##..", "..##..", "..##..", "..##..", "..##..", "..##..", "..##.."],
+    'U': ["##..##", "##..##", "##..##", "##..##", "##..##", "##..##", "##..##", "..##.."],
+    'H': ["##..##", "##..##", "##..##", "######", "##..##", "##..##", "##..##", "##..##"],
+    '_': ["......", "......", "......", "......", "......", "......", "......", "######"]
+  };
+  for (const k of Object.keys(LATIN_GLYPHS)) if (!FONT[k]) FONT[k] = { rows: LATIN_GLYPHS[k], above: 0, below: 0 };
   const COL = {
     bg: '#221e40',
     floor: '#2e2854',
@@ -655,7 +677,7 @@
     autoAcc = 0;
     cycleEarned = 0n;
     rebirthOpen = false;
-    if (!rebirthAdOff) showFullScreenAd();   // the ad on a rebirth, unless a rebirth item was bought
+    if (!rebirthAdOff) startLoading();   // the ad on a rebirth, shown during a loading screen, unless a rebirth item was bought
     shopReturn = false;
     scroll = 0;
     saveGame();
@@ -1060,20 +1082,41 @@
   // an ad for a skin: the ad SDK is not connected yet, so the view counts right away
   // the reward ad: in VK it is shown by VK Bridge, and the reward comes only if the ad was shown;
   // outside VK (testing) the reward comes at once
+  // the reward ad that the player chooses: one per minute (the cooldown); with the ad-free purchase it is given at once
+  let rewardAdReadyAt = 0;
   function showRewardAd(onReward) {
-    if (premiumOwned.noads || !window.vkBridge) { onReward(); return; }   // with the ad-free purchase the reward comes at once
+    if (premiumOwned.noads) { onReward(); return; }
+    const now = Date.now();
+    if (now < rewardAdReadyAt) {
+      popups.push({ x: 160, y: 100, t: 0, text: 'РЕКЛАМА ЧЕРЕЗ ' + Math.ceil((rewardAdReadyAt - now) / 1000) + ' С' });
+      return;
+    }
+    rewardAdReadyAt = now + 60000;
+    if (!window.vkBridge) { onReward(); return; }
     vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward', use_waterfall: true })
       .then((data) => {
         if (data && data.result) onReward();
-        else popups.push({ x: 160, y: 100, t: 0, text: 'РЕКЛАМЫ НЕТ' });
+        else { rewardAdReadyAt = 0; popups.push({ x: 160, y: 100, t: 0, text: 'РЕКЛАМЫ НЕТ' }); }
       })
-      .catch(() => popups.push({ x: 160, y: 100, t: 0, text: 'РЕКЛАМА НЕ ПРОШЛА' }));
+      .catch(() => { rewardAdReadyAt = 0; popups.push({ x: 160, y: 100, t: 0, text: 'РЕКЛАМА НЕ ПРОШЛА' }); });
   }
   // the full-screen ad: on a rebirth, and every 7 minutes of play. The play timer stops while an ad is on the screen.
   const AD_PLAY_SECONDS = 420;     // 7 minutes of play between timed ads
   let adPlayAcc = 0;               // seconds of play since the last timed ad; a rebirth or reward ad does not reset it
   let adOpen = false;              // a full-screen ad is on the screen now
-  let rebirthAdOff = false;        // set by buying a rebirth item: no ad on a rebirth after that (saved)
+  let loadingLeft = 0;             // seconds the loading screen stays up
+  // the loading screen: shown before the full-screen ad, so the ad comes during an explicit loading
+  function startLoading() {
+    loadingLeft = 2.5;
+    showFullScreenAd();
+  }
+  function drawLoading() {
+    fillRect(0, 0, W, H, 'rgba(10, 8, 24, 0.85)');
+    drawTextBox('ЗАГРУЗКА', 1, 0, W, H / 2 - 16, H / 2 - 6, COL.text);
+    const p = Math.min(1, (2.5 - loadingLeft) / 2.5);
+    fillRect(W / 2 - 60, H / 2 + 6, 120, 4, COL.btnFrame);
+    fillRect(W / 2 - 60, H / 2 + 6, Math.round(120 * p), 4, accent());
+  }
   function showFullScreenAd() {
     if (!window.vkBridge || adOpen) return;   // outside VK no ad is shown
     adOpen = true;
@@ -2381,7 +2424,7 @@
   // ---------- settings ----------
   // «НАСТРОЙКИ» is the first button of the top row
   const [GEAR_X0, GEAR_X1, GEAR_Y0, GEAR_Y1] = topRect('settings');
-  const SET_X0 = 72, SET_Y0 = 4, SET_X1 = 248, SET_Y1 = 140;   // the window: 2 px from the edges of the visible 180 px   // window coordinates: 136 px tall
+  const SET_X0 = 72, SET_Y0 = 4, SET_X1 = 248, SET_Y1 = 138;   // the window: 2 px from the edges of the visible 180 px   // window coordinates: 136 px tall
   // phone: menus open as sheets from the bottom: the window's top is at y 182, its bottom at y 318
   const SHEET_TOP = 182, SHEET_DY = 178;   // the sheet starts 2 px under the line under the kitchen: the window's top at y 182, 2 px above the bottom
   function inSheet(draw) {
@@ -2445,23 +2488,109 @@
     drawTextBox(verText, 1, 74, 74 + verW, 10, 20, dimTone());
     drawTextBox('CR4YNE', 1, 246 - devW, 246, 10, 20, dimTone());
     // one row each: the label on the left, the slider or the toggle on the right; rows are 16 px apart
-    sliderRow(26, 'ЗВУК', settings.sound);
-    sliderRow(42, 'МУЗЫКА', settings.music);
+    sliderRow(22, 'ЗВУК', settings.sound);
+    sliderRow(38, 'МУЗЫКА', settings.music);
     // full screen: the toggle sits in the free row between the sliders and the colour-blind row
-    drawText('НА ВЕСЬ ЭКРАН', 1, 74, 62, COL.text, 'left');
+    drawText('НА ВЕСЬ ЭКРАН', 1, 74, 54, COL.text, 'left');
     const fsOn = !!document.fullscreenElement;
-    fillRect(202, 61, 44, 10, fsOn ? '#5c5096' : COL.track);
-    fillRect(fsOn ? 238 : 204, 62, 8, 8, COL.btnText);
-    drawText('АНИМИРОВАННЫЙ ФОН', 1, 74, 78, COL.text, 'left');
-    fillRect(202, 77, 44, 10, settings.animBg ? '#5c5096' : COL.track);
-    fillRect(settings.animBg ? 238 : 204, 78, 8, 8, COL.btnText);
-    drawText('ТРЯСКА ЭКРАНА', 1, 74, 94, COL.text, 'left');
-    fillRect(202, 93, 44, 10, settings.shake ? '#5c5096' : COL.track);
-    fillRect(settings.shake ? 238 : 204, 94, 8, 8, COL.btnText);
-    settingsButton(74, 110, 246, 122, ['СБРОС ПРОГРЕССА', 'ТОЧНО СБРОСИТЬ', 'ТОЧНО ЭТО НЕОБРАТИМО'][resetStage]);
+    fillRect(202, 53, 44, 10, fsOn ? '#5c5096' : COL.track);
+    fillRect(fsOn ? 238 : 204, 54, 8, 8, COL.btnText);
+    drawText('АНИМИРОВАННЫЙ ФОН', 1, 74, 68, COL.text, 'left');
+    fillRect(202, 67, 44, 10, settings.animBg ? '#5c5096' : COL.track);
+    fillRect(settings.animBg ? 238 : 204, 68, 8, 8, COL.btnText);
+    drawText('ТРЯСКА ЭКРАНА', 1, 74, 82, COL.text, 'left');
+    fillRect(202, 81, 44, 10, settings.shake ? '#5c5096' : COL.track);
+    fillRect(settings.shake ? 238 : 204, 82, 8, 8, COL.btnText);
+    settingsButton(74, 96, 246, 108, ['СБРОС ПРОГРЕССА', 'ТОЧНО СБРОСИТЬ', 'ТОЧНО ЭТО НЕОБРАТИМО'][resetStage]);
+    // the support and documents tabs, and the close button under them
+    settingsButton(74, 110, 160, 122, 'ПОДДЕРЖКА');
+    settingsButton(164, 110, 246, 122, 'ДОКУМЕНТЫ');
     settingsButton(74, 124, 246, 136, 'ЗАКРЫТЬ');
   }
 
+  // ---------- support and documents: the e-mails are copied, the documents are read in the game ----------
+  let supportOpen = false, docsListOpen = false, docsOpen = -1, docsScroll = 0;
+  const SUPPORT_EMAILS = ['CR4YNEGAMES@GMAIL.COM', 'BILLKAMIKADZE@GMAIL.COM'];
+  const DOC_TOP = 22, DOC_BOTTOM = 120, DOC_X = 80, DOC_W = 160;
+  // the copy button: a thin 1 px frame in the same colour as the menu's borders, and the inside of the card
+  function copyButton(x0, y0, x1, y1, label) {
+    fillRect(x0, y0, x1 - x0, y1 - y0, COL.panelEdge);
+    fillRect(x0 + 1, y0 + 1, x1 - x0 - 2, y1 - y0 - 2, COL.row);
+    drawTextBox(label, 1, x0, x1, y0, y1, COL.text);
+  }
+  // the copy button turns into СКОПИРОВАНО for 5 seconds after a copy
+  let copiedUntil = [0, 0];
+  function copyEmail(i) {
+    try { navigator.clipboard.writeText(SUPPORT_EMAILS[i]).catch(() => {}); } catch (err) { /* the browser refused */ }
+    copiedUntil[i] = Date.now() + 5000;
+  }
+  function drawSupportFrame(title) {
+    fillRect(SET_X0, SET_Y0, SET_X1 - SET_X0, SET_Y1 - SET_Y0, COL.panel);
+    fillRect(SET_X0, SET_Y0, SET_X1 - SET_X0, 1, COL.panelEdge);
+    fillRect(SET_X0, SET_Y1 - 1, SET_X1 - SET_X0, 1, COL.panelEdge);
+    fillRect(SET_X0, SET_Y0, 1, SET_Y1 - SET_Y0, COL.panelEdge);
+    fillRect(SET_X1 - 1, SET_Y0, 1, SET_Y1 - SET_Y0, COL.panelEdge);
+    drawTextBox(title, 1, SET_X0, SET_X1, 10, 20, COL.text);
+  }
+  function drawSupport() {
+    drawSupportFrame('ПОДДЕРЖКА');
+    drawTextBox('ПОЧТА ДЛЯ ОБРАЩЕНИЙ', 1, SET_X0, SET_X1, 26, 34, dimTone());
+    // one card per e-mail: the address on top, the copy button under it
+    SUPPORT_EMAILS.forEach((e, i) => {
+      const y = 40 + i * 36;
+      fillRect(74, y, 172, 30, COL.panelEdge);
+      fillRect(75, y + 1, 170, 28, COL.row);
+      drawTextBox(e, 1, 74, 246, y + 4, y + 12, COL.text);
+      copyButton(120, y + 16, 200, y + 28, Date.now() < copiedUntil[i] ? 'СКОПИРОВАНО' : 'КОПИРОВАТЬ');
+    });
+    drawTextBox('ОТВЕТИМ В ТЕЧЕНИЕ 7 ДНЕЙ', 1, SET_X0, SET_X1, 112, 120, dimTone());
+    settingsButton(74, 124, 246, 136, 'НАЗАД');
+  }
+  function drawDocsList() {
+    drawSupportFrame('ДОКУМЕНТЫ');
+    settingsButton(74, 56, 246, 70, 'СОГЛАШЕНИЕ');
+    settingsButton(74, 80, 246, 94, 'ПОЛИТИКА');
+    settingsButton(74, 124, 246, 136, 'НАЗАД');
+  }
+  function docHeight(body) {
+    let y = 0;
+    body.split('\n').forEach((p) => {
+      if (p.trim() === '') { y += 11; return; }
+      y += wrapText(p, 1, DOC_W).length * 11 + 4;
+    });
+    return y;
+  }
+  function docMaxScroll(doc) { return Math.max(0, docHeight(doc.body) - (DOC_BOTTOM - DOC_TOP)); }
+  function drawDocReader() {
+    const doc = DOCS[docsOpen];
+    drawSupportFrame(docsOpen === 0 ? 'СОГЛАШЕНИЕ' : 'ПОЛИТИКА');
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(DOC_X - 2, DOC_TOP, DOC_W + 4, DOC_BOTTOM - DOC_TOP);
+    ctx.clip();
+    let y = DOC_TOP - docsScroll;
+    doc.body.split('\n').forEach((p) => {
+      if (p.trim() === '') { y += 11; return; }
+      y = drawWrapped(p, 1, DOC_X, y, DOC_W, COL.text, 11) + 4;
+    });
+    ctx.restore();
+    settingsButton(74, 124, 246, 136, 'НАЗАД');
+  }
+  function handleInfoDown(gx, gy) {
+    if (supportOpen) {
+      if (inRect(gx, gy, 120, 56, 200, 68)) { copyEmail(0); return; }
+      if (inRect(gx, gy, 120, 92, 200, 104)) { copyEmail(1); return; }
+      if (inRect(gx, gy, 74, 124, 246, 136)) supportOpen = false;
+      return;
+    }
+    if (docsListOpen) {
+      if (inRect(gx, gy, 74, 56, 246, 70)) { docsListOpen = false; docsOpen = 0; docsScroll = 0; return; }
+      if (inRect(gx, gy, 74, 80, 246, 94)) { docsListOpen = false; docsOpen = 1; docsScroll = 0; return; }
+      if (inRect(gx, gy, 74, 124, 246, 136)) docsListOpen = false;
+      return;
+    }
+    if (docsOpen >= 0 && inRect(gx, gy, 74, 124, 246, 136)) { docsOpen = -1; docsListOpen = true; }
+  }
   function setSlider(name, gx) {
     const v = Math.max(0, Math.min(1, (gx - SLIDER_X0) / SLIDER_W));
     settings[name] = Math.round(v * 20) / 20;
@@ -2503,10 +2632,12 @@
     } catch (err) { /* the browser refused: nothing changes */ }
   }
   function handleSettingsDown(gx, gy) {
-    if (inRect(gx, gy, 74, 126, 246, 138)) { settingsOpen = false; resetStage = 0; panelOpen = shopReturn; shopReturn = false; return; }   // back to the shop only if it was open before
-    if (inRect(gx, gy, 198, 76, 248, 90)) { settings.animBg = !settings.animBg; return; }
-    if (inRect(gx, gy, 198, 92, 248, 106)) { settings.shake = !settings.shake; return; }
-    if (inRect(gx, gy, 74, 110, 246, 122)) {
+    if (inRect(gx, gy, 74, 110, 160, 122)) { supportOpen = true; return; }
+    if (inRect(gx, gy, 164, 110, 246, 122)) { docsListOpen = true; return; }
+    if (inRect(gx, gy, 74, 124, 246, 136)) { settingsOpen = false; resetStage = 0; panelOpen = shopReturn; shopReturn = false; return; }   // back to the shop only if it was open before
+    if (inRect(gx, gy, 198, 66, 248, 78)) { settings.animBg = !settings.animBg; return; }
+    if (inRect(gx, gy, 198, 80, 248, 92)) { settings.shake = !settings.shake; return; }
+    if (inRect(gx, gy, 74, 96, 246, 108)) {
       resetStage += 1;
       if (resetStage >= 3) { resetAll(); resetStage = 0; }
       return;
@@ -2556,6 +2687,7 @@
     startMusicOnce();
     const [gx, gy] = toGame(e);
     if (!anyMenuOpenNow() && inRect(gx, gy, FS_BL_X, FS_BL_Y, FS_BL_X + FS_BL_S, FS_BL_Y + FS_BL_S)) { toggleFullScreen(); return; }
+    if (supportOpen || docsListOpen || docsOpen >= 0) { handleInfoDown(gx, gy - SHEET_DY); return; }
     if (settingsOpen) { handleSettingsDown(gx, gy - SHEET_DY); return; }   // the settings window blocks everything else
     if (rebirthOpen) { handleRebirthDown(gx, gy - SHEET_DY); return; }      // so does the rebirth window
     if (progWin) { handleProgDown(gx, gy - SHEET_DY); return; }             // and the progress window
@@ -2668,6 +2800,11 @@
   canvas.addEventListener('pointercancel', () => { drag = null; });
 
   canvas.addEventListener('wheel', (e) => {
+    if (docsOpen >= 0) {   // the document scrolls with the wheel
+      e.preventDefault();
+      docsScroll = Math.max(0, Math.min(docMaxScroll(DOCS[docsOpen]), docsScroll + e.deltaY * 0.5));
+      return;
+    }
     if (skinWin && !skinPreview) {
       const [wx, wy] = toGame(e);
       if (inRect(wx, wy - SHEET_DY, 74, SKIN_TOP, 246, SKIN_BOT)) {
@@ -2686,6 +2823,7 @@
 
   // ---------- update ----------
   function update(dt) {
+    if (loadingLeft > 0) loadingLeft = Math.max(0, loadingLeft - dt);
     if (wheelPending !== 0) {
       const step = wheelPending * Math.min(1, dt * 14);
       wheelPending -= step;
@@ -2779,7 +2917,7 @@
     // the timed ad: counts only while play goes on (not while an ad is open) and never with the ad-free purchase
     if (!premiumOwned.noads && !adOpen) {
       adPlayAcc += dt;
-      if (adPlayAcc >= AD_PLAY_SECONDS) { adPlayAcc = 0; showFullScreenAd(); }
+      if (adPlayAcc >= AD_PLAY_SECONDS) { adPlayAcc = 0; startLoading(); }
     }
     const today = mskDate();
     if (dailySecDate !== today) { dailySecDate = today; dailySec = 0; }
@@ -3346,14 +3484,18 @@
     // Боня's bubble is drawn over the shop, so she can still send her message while it is open
     if (bonyaSpeechLeft > 0 && adBoost.double <= 0 && !speechMenuOpen()) drawBonyaBubble();
     if (settingsOpen) inSheet(drawSettings);
+    if (supportOpen) inSheet(drawSupport);
+    else if (docsListOpen) inSheet(drawDocsList);
+    else if (docsOpen >= 0) inSheet(drawDocReader);
     if (rebirthOpen) inSheet(drawRebirth);
     if (progWin) inSheet(drawProgWin);
     if (skinWin) inSheet(drawSkinWin);
     if (premiumWin) inSheet(drawPremiumWin);
     if (skinOffer) inSheet(drawSkinOffer);
     if (ev && ev.type === 'appetite') drawAppetite();
+    if (loadingLeft > 0) drawLoading();
     if (boostMenuOpen) inSheet(drawBoostMenu);   // the same place as the other menus: the sheet under the scene
-    if (!anyMenuOpenNow()) drawFullScreenIconAt(FS_BL_X, FS_BL_Y, FS_BL_S);
+    if (!anyMenuOpenNow() && document.fullscreenEnabled) drawFullScreenIconAt(FS_BL_X, FS_BL_Y, FS_BL_S);   // only where the browser allows fullscreen
     ctx.restore();
   }
 
@@ -3512,6 +3654,43 @@
     });
   }
 
+  // ---------- VK storage: the save is kept on VK too, so the same progress shows on every platform ----------
+  // VK keeps values of up to 4096 characters, so the save goes in chunks; a save is sent at most once every 15 seconds
+  const VK_CHUNK = 3900;
+  let vkSaveTimer = null;
+  function vkSaveSoon() {
+    if (!window.vkBridge) return;
+    clearTimeout(vkSaveTimer);
+    vkSaveTimer = setTimeout(vkSaveNow, 15000);
+  }
+  function vkSaveNow() {
+    let raw = null;
+    try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { return; }
+    if (!raw) return;
+    const parts = [];
+    for (let i = 0; i < raw.length; i += VK_CHUNK) parts.push(raw.slice(i, i + VK_CHUNK));
+    vkBridge.send('VKWebAppStorageSet', { key: 'save_n', value: String(parts.length) }).catch(() => {});
+    parts.forEach((p, i) => vkBridge.send('VKWebAppStorageSet', { key: 'save_' + i, value: p }).catch(() => {}));
+  }
+  // at the start: if the VK copy is newer than this device's save, take it and reload once
+  function vkLoadCloud() {
+    vkBridge.send('VKWebAppStorageGet', { keys: ['save_n'] }).then((res) => {
+      const n = parseInt(res.keys[0].value, 10);
+      if (!(n > 0)) return null;
+      const keys = [];
+      for (let i = 0; i < n; i++) keys.push('save_' + i);
+      return vkBridge.send('VKWebAppStorageGet', { keys: keys }).then((res2) => {
+        const cloud = res2.keys.map((k) => k.value).join('');
+        let mine = 0, theirs = 0;
+        try { mine = (JSON.parse(localStorage.getItem(SAVE_KEY) || '{}').savedAt) || 0; } catch (e) { mine = 0; }
+        try { theirs = (JSON.parse(cloud).savedAt) || 0; } catch (e) { return; }
+        if (theirs > mine) {
+          localStorage.setItem(SAVE_KEY, cloud);
+          location.reload();
+        }
+      });
+    }).catch(() => {});
+  }
   // ---------- saving: progress and settings in localStorage (fails quietly if unavailable) ----------
   const SAVE_KEY = 'kucha-pryanikov-save-v1';
   function saveGame() {
@@ -3540,7 +3719,9 @@
         dailySecDate,
         totalBought,
         settings,
+        savedAt: Date.now(),
       }));
+      vkSaveSoon();
     } catch (err) {
       // storage blocked or full: keep playing without saving
     }
@@ -3617,6 +3798,15 @@
     }
   }
   loadGame();
+  if (window.vkBridge) vkLoadCloud();
+  // the sound stops when the app is hidden (VKWebAppViewHide) and comes back when it is shown again
+  if (window.vkBridge && vkBridge.subscribe) {
+    vkBridge.subscribe((e) => {
+      const type = e && e.detail && e.detail.type;
+      if (type === 'VKWebAppViewHide' && audioCtx) audioCtx.suspend();
+      if (type === 'VKWebAppViewRestore' && audioCtx) audioCtx.resume();
+    });
+  }
   setInterval(saveGame, 5000);
   window.addEventListener('pagehide', saveGame);
 
