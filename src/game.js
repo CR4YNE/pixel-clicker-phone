@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.321-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.322-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -1077,7 +1077,7 @@
       shopReturn = false;
       return;
     }
-    if (inRect(gx, gy, 238, SKIN_TOP, 246, SKIN_BOT)) { skinDrag = { y0: gy, s0: skinScroll }; return; }   // the slider
+    if (inRect(gx, gy, 238, SKIN_TOP, 246, SKIN_BOT)) { skinDrag = { y0: lastRawY, s0: skinScroll }; return; }   // the slider (raw screen rows)
     SKINS.forEach((k, i) => {
       if (!inRect(gx, gy, 74, SKIN_TOP, 238, SKIN_BOT)) return;
       const [cx, cy] = skinCellXY(i);
@@ -2746,7 +2746,7 @@
     if (docsOpen >= 0) {
       const [dgx, dgy] = toGame(e);
       if (dgy - SHEET_DY >= DOC_TOP - 2 && dgy - SHEET_DY <= DOC_BOTTOM + 2) {
-        docsDrag = { y0: dgy, s0: docsScroll, moved: 0 };
+        docsDrag = { y0: rawY(e), s0: docsScroll, moved: 0 };
         capturePointer(e);
       }
     }
@@ -2807,7 +2807,7 @@
       }
       if (inRect(gx, sgy, PX0, listTop(), PX1, listBottom())) {
         // grabbing the scrollbar (right edge): the thumb follows the finger; elsewhere the list follows it
-        drag = { y0: sgy, s0: scroll, moved: 0, thumb: gx >= PX1 - 8 };
+        drag = { y0: rawY(e), s0: scroll, moved: 0, thumb: gx >= PX1 - 8 };   // raw screen rows, see rawY
         capturePointer(e);   // the finger may leave the list: the game still gets its move and its lift
         return;
       }
@@ -2825,8 +2825,7 @@
 
   canvas.addEventListener('pointermove', (e) => {
     if (!drag) return;
-    const [, gy] = toGame(e);
-    const dy = (gy - SHEET_DY) - drag.y0;   // the shop sheet is lower, its taps are moved up too
+    const dy = rawY(e) - drag.y0;   // raw screen rows: the strip between the scene and the sheet must not jump the list
     drag.moved = Math.max(drag.moved, Math.abs(dy));
     // list drag: content follows the finger. thumb drag: the thumb moves with the finger, so the list moves the other way.
     // dragging down moves the thumb down (top of the list = thumb at the top), so the list scrolls the other way
@@ -2863,21 +2862,24 @@
   });
   canvas.addEventListener('pointermove', (e) => {
     if (!skinDrag) return;
-    const [, gy] = toGame(e);
-    const dy = (gy - SHEET_DY) - skinDrag.y0;   // the shop-like sheet is lower, so the local y is the screen y minus SHEET_DY
+    const dy = rawY(e) - skinDrag.y0;   // raw screen rows, so the strip between the scene and the sheet does not jump
     const track = (SKIN_BOT - SKIN_TOP) - skinThumbH();
     skinScroll = clampSkinScroll(skinDrag.s0 + dy * (skinMaxScroll() / Math.max(1, track)));
   });
   // the documents follow the finger
   canvas.addEventListener('pointermove', (e) => {
     if (!docsDrag || docsOpen < 0) return;
-    const [, gy] = toGame(e);
-    const dy = gy - docsDrag.y0;
+    const dy = rawY(e) - docsDrag.y0;
     docsDrag.moved = Math.max(docsDrag.moved, Math.abs(dy));
     docsScroll = Math.max(0, Math.min(docMaxScroll(DOCS[docsOpen]), docsDrag.s0 - dy));
   });
   window.addEventListener('pointerup', () => { sliderDrag = null; skinDrag = null; docsDrag = null; });
   canvas.addEventListener('pointercancel', () => { drag = null; docsDrag = null; });
+  // the screen row of a pointer event in canvas pixels, without the scene's shifts: a drag measures the finger's real movement
+  function rawY(e) {
+    const r = canvas.getBoundingClientRect();
+    return (e.clientY - r.top) / (r.width / PHONE_W);
+  }
   // the pointer stays with the canvas until the finger lifts, even when it leaves the list
   function capturePointer(e) {
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* the browser refused: the list still works inside the canvas */ }
