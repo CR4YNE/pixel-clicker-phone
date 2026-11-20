@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.258-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.278-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -408,7 +408,7 @@
     { id: 'volcano', name: 'ВУЛКАНИЧЕСКИЙ', src: 'art/cookie-volcano.png', ready: true, premium: true },
     { id: 'solar', name: 'СОЛНЕЧНАЯ СИСТЕМА', src: 'art/cookie-solar.png', ready: true, premium: true },
     { id: 'starry', name: 'ЗВЁЗДНАЯ НОЧЬ', src: 'art/cookie-starry.png', ready: true, premium: true },
-    { id: 'caramel', name: 'КАРАМЕЛЬНЫЙ', src: 'art/cookie-caramel.png', ready: true, premium: true },
+    { id: 'caramel', name: 'КАРАМЕЛЬНЫЙ', src: 'art/cookie-caramel.png?v=1', ready: true, premium: true },
     { id: 'gzhel', name: 'ГЖЕЛЬ', src: 'art/cookie-gzhel.png?v=1', ready: true, premium: true },
     { id: 'rainbow', name: 'РАДУЖНЫЙ', src: 'art/cookie-rainbow.png?v=2', ready: true, premium: true },
     { id: 'neon', name: 'КОСМИЧЕСКИЙ', src: 'art/cookie-neon.png', ready: true, premium: true },
@@ -532,6 +532,7 @@
   }
   function buy(tab, index) {
     if (tab === 'click' || tab === 'tech') {
+      if (listLocked(tab, index)) return false;   // a locked item cannot be bought, not even in bulk
       // buys as many as the amount allows and the coins pay for (fewer if the coins run out)
       const cap = tab === 'tech' ? TECH_MAX - techOwned[index] : Infinity;
       const limit = Math.min(buyMode === 'max' ? BUY_MAX_STEPS : buyMode, cap);
@@ -628,8 +629,8 @@
   // rebirth button: shows what is still needed, the name when ready, and asks for a second tap to confirm
   function rebirthLabel() {
     const need = rebirthNeed();
-    if (cycleEarned >= need) return 'ПЕРЕРОЖДЕНИЕ';
-    return 'ЕЩЁ ' + fmt(need - cycleEarned);
+    if (coins >= need) return 'ПЕРЕРОЖДЕНИЕ';
+    return 'ЕЩЁ ' + fmt(need - coins);
   }
   // the button opens the rebirth window; the window explains it and holds the only confirm button
   // only one menu is open at a time: opening one closes the others, so nothing old reopens later
@@ -643,6 +644,8 @@
   }
   function handleRebirthTap() { closeMenus('rebirth'); rebirthOpen = true; }
   function doRebirth() {
+    sfxRebirth();
+    bestProkOneRebirth = Math.max(bestProkOneRebirth, prokOwned.filter(Boolean).length);
     rebirths += 1;
     coins = 0n;
     clickOwned = clickOwned.map(() => 0);
@@ -695,7 +698,7 @@
     glazeClick = Math.max(0, glazeClick - dt);
     glazeTech = Math.max(0, glazeTech - dt);
     questBoost = Math.max(0, questBoost - dt);
-    if (minuteLeft > 0) updateMinute(dt);
+    updateMinute(dt);
     if (!ev) {
       evTimer -= dt;
       // the appetite event waits until every menu (the shop too) is closed
@@ -733,9 +736,12 @@
         coins += pay;
         cycleEarned += pay;
         totalEarned += pay;
+        popups.push({ x: coinX() + (Math.random() * 60 - 30), y: 96, t: 0, text: '+' + fmt(pay) });   // every auto tap shows its +N
+        const sa = Math.random() * Math.PI * 2;
+        sparks.push({ x: coinX(), y: COIN_Y, vx: Math.cos(sa) * 50, vy: Math.sin(sa) * 50 - 30, t: 0 });
       }
     }
-    minuteAcc += 25 * dt;                             // 25 virtual presses a second
+    minuteAcc += minuteLeft > 0 ? 25 * dt : 0;   // the cooking minute only                             // 25 virtual presses a second
     while (minuteAcc >= 1) {
       // every virtual press pays out, shows its own "+N" and crumbs
       minuteAcc -= 1;
@@ -1995,6 +2001,7 @@
 
   // ---------- progress window: statistics, achievements, leaderboards (VK) ----------
   // achievements in groups: each has a progress value and a goal
+  let bestProkOneRebirth = 0;   // the most upgrades owned at once in one rebirth (saved)
   const ACH = [];
   const addAch = (name, value, goal) => ACH.push({ name, value, goal });
   [100, 1000, 5000, 10000, 25000].forEach((g) =>
@@ -2005,8 +2012,7 @@
     addAch('КУПИТЬ ВСЕГО ' + g + ' ТЕХНИКИ', () => techOwned.reduce((x, y) => x + y, 0), g));
   [1, 5, 10, 20, 40].forEach((g) =>
     addAch('КУПИТЬ ' + g + ' ПРОКАЧЕК', () => prokOwned.filter(Boolean).length, g));
-  [1, 2, 3, 5, 10, 20, 30, 40, 50].forEach((g) =>
-    addAch('СДЕЛАТЬ ПЕРЕРОЖДЕНИЙ: ' + g, () => rebirths, g));
+  addAch('ВСЕ ' + PROKACHKI.length + ' ПРОКАЧЕК ЗА ПЕРЕРОЖДЕНИЕ', () => Math.max(bestProkOneRebirth, prokOwned.filter(Boolean).length), PROKACHKI.length);
   [10, 25, 50, 100].forEach((g) =>
     addAch('ТЕХНИКА ДОСТИГЛА УРОВНЯ ' + g, () => Math.max(...techOwned), g));
   [100, 1000, 2500, 5000, 10000].forEach((g) =>
@@ -2019,6 +2025,7 @@
     addAch('СДЕЛАТЬ ' + g + ' ПОКУПОК', () => totalBought, g));
   [100, 1000, 10000, 100000].forEach((g) =>
     addAch('ДОХОД ' + g + ' В СЕКУНДУ', () => autoPerSec(), g));
+  // the challenge-complete sound, 4 seconds: a build-up of rising bells, then a horn call that sings out and rings
   const PROG_TABS = ['stats', 'ach', 'top', 'daily'];
   const ACH_PER_PAGE = 5, ACH_PAGES = Math.ceil(ACH.length / 5);   // 5 per page, to fit the sheet
   // the progress window is wider than the others, so the three tab names fit on one row
@@ -2219,7 +2226,7 @@
   // ---------- rebirth window ----------
   const REB_X0 = 72, REB_X1 = 248, REB_Y0 = 4, REB_Y1 = 140;   // the sheet frame: 2 px from the visible edges
   function handleRebirthDown(gx, gy) {
-    const ready = cycleEarned >= rebirthNeed();
+    const ready = coins >= rebirthNeed();   // the rebirth needs the gingerbread in hand now, not earned in this cycle
     if (inRect(gx, gy, 74, 110, 246, 122)) {
       if (ready) doRebirth();
       return;
@@ -2235,7 +2242,7 @@
     fillRect(REB_X1 - 1, REB_Y0, 1, REB_Y1 - REB_Y0, COL.panelEdge);
     drawTextBox('ПЕРЕРОЖДЕНИЕ', 1, REB_X0, REB_X1, 10, 20, COL.text);
     const need = rebirthNeed();
-    const ready = cycleEarned >= need;
+    const ready = coins >= need;
     const per = premiumOwned.rebirth2 ? 4 : 2;
     const nowMult = Math.pow(per, rebirths);
     const afterMult = Math.pow(per, rebirths + 1);
@@ -2246,7 +2253,7 @@
     drawText('ПРОКАЧКИ, УЛУЧШЕНИЯ', 1, 74, 58, COL.text, 'left');
     drawText('ОСТАНЕТСЯ: ПРЕМИУМ,', 1, 74, 68, COL.text, 'left');
     drawText('РЕКЛАМА, НАСТРОЙКИ', 1, 74, 78, COL.text, 'left');
-    drawText('НАКОПЛЕНО: ' + fmt(cycleEarned) + '/' + fmt(need), 1, 74, 88, ready ? accent() : COL.text, 'left');
+    drawText('В НАЛИЧИИ: ' + fmt(coins) + '/' + fmt(need), 1, 74, 88, ready ? accent() : COL.text, 'left');
     settingsButton(74, 110, 246, 122, rebirthLabel());   // the same spacing as in the settings: 4 px to the close button
     settingsButton(74, 124, 246, 136, 'ЗАКРЫТЬ');
   }
@@ -2531,7 +2538,14 @@
     return inRect(gx, gy, cx - w / 2 - 3, COUNTER_LABEL_Y - 3, cx + w / 2 + 3, COUNTER_AUTO_Y + 9);
   }
 
+  let pendingTapSound = false;   // a tap plays the click sound, unless the tap plays its own sound (a buy, the cookie)
   canvas.addEventListener('pointerdown', (e) => {
+    if (splashT > 0) return;   // the start screen takes no taps
+    pendingTapSound = true;
+    handleTapDown(e);
+    if (pendingTapSound) sfxButton();
+  });
+  function handleTapDown(e) {
     e.preventDefault();
     if (splashT > 0) return;                  // the start screen takes no taps
     if (infoOpen) {                           // the launch info window: its OK button closes it (scene x, raw screen y)
@@ -2603,7 +2617,7 @@
     const dx = gx - coinX();
     const dy = gy - COIN_Y;
     if (gy < FLOOR_Y + 10) spawnClick(gx, gy);   // any place above the middle of the floor counts, the counter included
-  });
+  }
 
   canvas.addEventListener('pointermove', (e) => {
     if (!drag) return;
@@ -3324,7 +3338,7 @@
       blinkDot(ax1 - 6, ay0 + 2);
     }
     drawTopButton(rebirthLabel(), ...topRect('rebirth'));
-    if (cycleEarned >= rebirthNeed() && Math.sin(cookT * 6) > 0) {
+    if (coins >= rebirthNeed() && Math.sin(cookT * 6) > 0) {
       const [rx0, rx1, ry0] = topRect('rebirth');   // topRect gives [x0, x1, y0, y1]
       blinkDot(rx1 - 6, ry0 + 2);
     }
@@ -3431,13 +3445,13 @@
   }
 
   // short square-wave blip through the sound slider
-  function blip(freq, dur, when) {
+  function blip(freq, dur, when, type) {
     const ctx = ensureAudio();
     if (!ctx) return;
     const t = ctx.currentTime + (when || 0);
     const o = ctx.createOscillator();
     const g = ctx.createGain();
-    o.type = 'square';
+    o.type = type || 'square';
     o.frequency.value = freq;
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.2, t + 0.005);
@@ -3447,8 +3461,56 @@
     o.start(t);
     o.stop(t + dur + 0.02);
   }
-  function sfxClick() { blip(880, 0.06); }
-  function sfxBuy() { blip(660, 0.09); blip(990, 0.12, 0.08); }
+  function sfxClick() { pendingTapSound = false; blip(880, 0.06); }
+  // a button: two soft low notes of a triangle wave, so it is not the cookie's click
+  function sfxButton() { pendingTapSound = false; blip(520, 0.05, 0, 'triangle'); blip(740, 0.05, 0.035, 'triangle'); }
+  function sfxBuy() { pendingTapSound = false; blip(660, 0.09); blip(990, 0.12, 0.08); }
+  // the rebirth: a rising chord
+  // the rebirth: a pixel fanfare: square-wave brass notes rising, an accent, a long top note, and bell sparkle; no low bass
+  function sfxRebirth() {
+    pendingTapSound = false;
+    const ctx = ensureAudio();
+    if (!ctx || !sfxGain) return;
+    const t = ctx.currentTime + 0.02;
+    const pixel = (f, s, dur, peak) => {
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(peak, s + 0.005);
+      g.gain.setValueAtTime(peak, s + dur * 0.8);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + dur + 0.05);
+      g.connect(sfxGain);
+      [[f, 1], [f * 1.5, 0.45]].forEach(([fr, a]) => {
+        const o = ctx.createOscillator();
+        const og = ctx.createGain();
+        o.type = 'square';
+        o.frequency.value = fr;
+        og.gain.value = a;
+        o.connect(og);
+        og.connect(g);
+        o.start(s);
+        o.stop(s + dur + 0.1);
+      });
+    };
+    // the motif: G4, C5, G5 with an accent, then the long C6
+    pixel(392, t, 0.28, 0.12);
+    pixel(523, t + 0.3, 0.28, 0.14);
+    pixel(784, t + 0.6, 0.28, 0.2);
+    pixel(1047, t + 0.9, 1.1, 0.22);
+    // bell sparkle on top: short square ticks of the high notes
+    [[2093, t + 0.9, 0.06, 0.5], [2637, t + 1.2, 0.04, 0.4]].forEach(([f, s, p, d]) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'square';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(p, s + 0.003);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + d);
+      o.connect(g);
+      g.connect(sfxGain);
+      o.start(s);
+      o.stop(s + d + 0.05);
+    });
+  }
 
   // ---------- saving: progress and settings in localStorage (fails quietly if unavailable) ----------
   const SAVE_KEY = 'kucha-pryanikov-save-v1';
@@ -3462,6 +3524,7 @@
         prokOwned,
         premiumOwned,
         rebirthAdOff,
+        bestProkOneRebirth,
         adWatched,
         adBoost: { double: adBoost.double, discount: adBoost.discount },   // the ad bonuses keep their time left
         rebirths,
@@ -3507,6 +3570,7 @@
       if (Array.isArray(s.clickOwned) && s.clickOwned.length === clickOwned.length) clickOwned = s.clickOwned.map(Number);
       if (Array.isArray(s.techOwned) && s.techOwned.length === techOwned.length) techOwned = s.techOwned.map(Number);
       if (Array.isArray(s.prokOwned) && s.prokOwned.length === prokOwned.length) prokOwned = s.prokOwned.map(Boolean);
+      bestProkOneRebirth = Math.max(0, Math.floor(Number(s.bestProkOneRebirth) || 0));
       rebirthAdOff = !!s.rebirthAdOff || !!(s.premiumOwned && s.premiumOwned.rebirth2);
       if (s.adWatched) adWatched = { double: !!s.adWatched.double, discount: !!s.adWatched.discount };
       if (s.adBoost) adBoost = { double: Math.max(0, Number(s.adBoost.double) || 0), discount: Math.max(0, Number(s.adBoost.discount) || 0) };
