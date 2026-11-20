@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Куча Пряников: Кликер</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; overscroll-behavior: none; }   /* a sideways slider drag must not trigger the browser's back swipe */
     body { display: flex; align-items: center; justify-content: center; }
     canvas {
       image-rendering: pixelated;
@@ -34,6 +34,6 @@
   </script>
   <script src="src/font-data.js?v=6"></script>
   <script src="src/docs-text.js?v=4"></script>
-  <script src="src/game.js?v=126"></script>
+  <script src="src/game.js?v=130"></script>
 </body>
 </html>

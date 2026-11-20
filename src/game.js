@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.305-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.309-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -463,6 +463,7 @@
   let techOwned = TECHNIKA.map(() => 0);
   let prokOwned = PROKACHKI.map(() => false);
   let premiumOwned = { double: false, triple: false, autoclick: false, rebirth2: false, discount: false, noads: false };
+  let rebirthAdOff = false;   // no ad on a rebirth after a rebirth item was bought (saved). Was never declared: every save failed silently
   let adBoost = { double: 0, discount: 0 };   // seconds left, not saved
   let adWatched = { double: false, discount: false };   // which rewarded ads were watched (saved)
   // перерождение: income is multiplied by 2 for each rebirth (4 with premium); progress resets, extras stay
@@ -2737,6 +2738,8 @@
     }
     startMusicOnce();
     const [gx, gy] = toGame(e);
+    // with a menu open the cookie still counts: the menus are drawn lower down (from y 182), the cookie is above them
+    if ((anyMenuOpenNow() || supportOpen || docsListOpen || docsOpen >= 0) && gy < FLOOR_Y + 10) { spawnClick(gx, gy); return; }
     if (!anyMenuOpenNow() && inRect(gx, gy, FS_BL_X, FS_BL_Y, FS_BL_X + FS_BL_S, FS_BL_Y + FS_BL_S)) { toggleFullScreen(); return; }
     if (consentOpen) { handleConsentDown(gx, gy - SHEET_DY); return; }
     if (supportOpen || docsListOpen || docsOpen >= 0) { handleInfoDown(gx, gy - SHEET_DY); return; }
@@ -3342,10 +3345,13 @@
   }
 
   function render() {
-    ctx.save();
+    // the shake moves the whole canvas, scaled up a little so no edge shows (inside the canvas, the edge got torn)
     if (shakeT > 0) {
-      ctx.translate(Math.round(Math.random() * 2 - 1), Math.round(Math.random() * 2 - 1));
+      canvas.style.transform = 'translate(' + Math.round(Math.random() * 4 - 2) + 'px, ' + Math.round(Math.random() * 4 - 2) + 'px) scale(1.04)';
+    } else if (canvas.style.transform) {
+      canvas.style.transform = '';
     }
+    ctx.save();
     if (kitchenImg) {
       ctx.drawImage(kitchenImg, 0, 0);
     } else {
