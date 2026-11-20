@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.319-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.320-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -609,6 +609,7 @@
   let wheelPending = 0;         // wheel distance not yet scrolled
   let skinWheelPending = 0, docsWheelPending = 0;   // the same for the skin grid and the document reader
   let drag = null;              // {y0, s0, moved, tab}
+  let docsDrag = null;          // {y0, s0, moved} while the documents are dragged by the finger
 
   let animT = 1;                // seconds since last coin click
   let everTapped = false;       // the player has tapped the cookie at least once
@@ -2741,6 +2742,14 @@
   function handleTapDown(e) {
     e.preventDefault();
     if (splashT > 0) return;                  // the start screen takes no taps
+    // the documents scroll by dragging them (in the consent window too), inside their text area
+    if (docsOpen >= 0) {
+      const [dgx, dgy] = toGame(e);
+      if (dgy - SHEET_DY >= DOC_TOP - 2 && dgy - SHEET_DY <= DOC_BOTTOM + 2) {
+        docsDrag = { y0: dgy, s0: docsScroll, moved: 0 };
+        capturePointer(e);
+      }
+    }
     if (consentOpen) { const [cgx, cgy] = toGame(e); handleConsentDown(cgx, cgy - SHEET_DY); return; }   // the first-launch window comes before the info window
     startMusicOnce();
     const [gx, gy] = toGame(e);
@@ -2799,6 +2808,7 @@
       if (inRect(gx, sgy, PX0, listTop(), PX1, listBottom())) {
         // grabbing the scrollbar (right edge): the thumb follows the finger; elsewhere the list follows it
         drag = { y0: sgy, s0: scroll, moved: 0, thumb: gx >= PX1 - 8 };
+        capturePointer(e);   // the finger may leave the list: the game still gets its move and its lift
         return;
       }
     } else if (!panelOpen && inRect(gx, gy, BTN_X0, BTN_Y0, BTN_X1, BTN_Y1)) {
@@ -2858,8 +2868,20 @@
     const track = (SKIN_BOT - SKIN_TOP) - skinThumbH();
     skinScroll = clampSkinScroll(skinDrag.s0 + dy * (skinMaxScroll() / Math.max(1, track)));
   });
-  window.addEventListener('pointerup', () => { sliderDrag = null; skinDrag = null; });
-  canvas.addEventListener('pointercancel', () => { drag = null; });
+  // the documents follow the finger
+  canvas.addEventListener('pointermove', (e) => {
+    if (!docsDrag || docsOpen < 0) return;
+    const [, gy] = toGame(e);
+    const dy = gy - docsDrag.y0;
+    docsDrag.moved = Math.max(docsDrag.moved, Math.abs(dy));
+    docsScroll = Math.max(0, Math.min(docMaxScroll(DOCS[docsOpen]), docsDrag.s0 - dy));
+  });
+  window.addEventListener('pointerup', () => { sliderDrag = null; skinDrag = null; docsDrag = null; });
+  canvas.addEventListener('pointercancel', () => { drag = null; docsDrag = null; });
+  // the pointer stays with the canvas until the finger lifts, even when it leaves the list
+  function capturePointer(e) {
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* the browser refused: the list still works inside the canvas */ }
+  }
 
   canvas.addEventListener('wheel', (e) => {
     if (docsOpen >= 0) {   // the document scrolls with the wheel
