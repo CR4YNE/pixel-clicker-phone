@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.304-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.305-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -606,6 +606,7 @@
   let panelT = 0;               // 0 = closed, 1 = open (animated)
   let scroll = 0;               // list scroll in game px
   let wheelPending = 0;         // wheel distance not yet scrolled
+  let skinWheelPending = 0, docsWheelPending = 0;   // the same for the skin grid and the document reader
   let drag = null;              // {y0, s0, moved, tab}
 
   let animT = 1;                // seconds since last coin click
@@ -1812,6 +1813,7 @@
           fillRect(mx + x, my + y, 1, 1, '#FFF3B0');
         }
       }
+      ctx.globalAlpha = 1;   // the moon's pulsing glow must not fade everything drawn after it (the menus and text)
       // four bats flap round the cookie, with tiny orange eyes
       for (let i = 0; i < 4; i++) {
         const t = cookT * (0.6 + i * 0.15) + i * 1.6;
@@ -2852,14 +2854,14 @@
   canvas.addEventListener('wheel', (e) => {
     if (docsOpen >= 0) {   // the document scrolls with the wheel
       e.preventDefault();
-      docsScroll = Math.max(0, Math.min(docMaxScroll(DOCS[docsOpen]), docsScroll + e.deltaY * 0.5));
+      docsWheelPending += e.deltaY * 0.5;   // eased in update(), like the lists
       return;
     }
     if (skinWin && !skinPreview) {
       const [wx, wy] = toGame(e);
       if (inRect(wx, wy - SHEET_DY, 74, SKIN_TOP, 246, SKIN_BOT)) {
         e.preventDefault();
-        skinScroll = clampSkinScroll(skinScroll + e.deltaY * 0.5);
+        skinWheelPending += e.deltaY * 0.5;   // eased in update(), like the lists
         return;
       }
     }
@@ -2882,6 +2884,26 @@
       const before = scroll;
       clampScroll();
       if (scroll !== before) wheelPending = 0;   // stop at the ends of the list
+    }
+    // the skin grid and the document reader glide the same way
+    if (skinWheelPending !== 0) {
+      const step = skinWheelPending * Math.min(1, dt * 14);
+      skinWheelPending -= step;
+      if (Math.abs(skinWheelPending) < 0.05) skinWheelPending = 0;
+      const want = skinScroll + step;
+      skinScroll = clampSkinScroll(want);
+      if (skinScroll !== want) skinWheelPending = 0;   // stop at the ends
+    }
+    if (docsWheelPending !== 0) {
+      if (docsOpen < 0) docsWheelPending = 0;
+      else {
+        const step = docsWheelPending * Math.min(1, dt * 14);
+        docsWheelPending -= step;
+        if (Math.abs(docsWheelPending) < 0.05) docsWheelPending = 0;
+        const want = docsScroll + step;
+        docsScroll = Math.max(0, Math.min(docMaxScroll(DOCS[docsOpen]), want));
+        if (docsScroll !== want) docsWheelPending = 0;
+      }
     }
     if (splashT > 0) splashT = Math.max(0, splashT - dt);
     animT += dt;
