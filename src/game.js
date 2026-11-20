@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.296-PHONE';   // capitals only: the font has no lowercase letters
+  const VERSION = '1.0.304-PHONE';   // capitals only: the font has no lowercase letters
   const W = 320;
   const H = 180;
   const SCENE_CROP_X = (W - 180) / 2;   // the phone screen shows the middle 180 px of the scene
@@ -2510,6 +2510,53 @@
 
   // ---------- support and documents: the e-mails are copied, the documents are read in the game ----------
   let supportOpen = false, docsListOpen = false, docsOpen = -1, docsScroll = 0;
+  let docsFromConsent = false;   // the reader was opened from the first-launch window
+  // ---------- the first launch: the documents are read and accepted with the tick box before the game ----------
+  const CONSENT_KEY = 'kucha-pryanikov-consent-v1';
+  function consentAccepted() {
+    try { return localStorage.getItem(CONSENT_KEY) === '1'; } catch (err) { return false; }
+  }
+  let consentOpen = !consentAccepted();
+  let consentChecked = false;
+  const CX0 = SET_X0 + 2, CX1 = SET_X1 - 2;
+  const CON = { t1: 25, b1: [37, 61], b2: [65, 89], box: [98, 0], go: [122, 134] };
+  // a button with two centred lines of text (the long document names do not fit on one line of the phone window)
+  function labelButton(x0, y0, x1, y1, l1, l2) {
+    fillRect(x0, y0, x1 - x0, y1 - y0, COL.row);
+    fillRect(x0, y0, x1 - x0, 1, COL.btnHi);
+    const cx = Math.round((x0 + x1) / 2);
+    drawText(l1, 1, cx, y0 + 4, COL.text, 'center');
+    drawText(l2, 1, cx, y0 + 13, COL.text, 'center');
+  }
+  function drawConsent() {
+    drawSupportFrame('ПЕРЕД ИГРОЙ');
+    drawText('ПРОЧТИТЕ ДОКУМЕНТЫ ИГРЫ', 1, Math.round((SET_X0 + SET_X1) / 2), CON.t1, dimTone(), 'center');
+    labelButton(CX0, CON.b1[0], CX1, CON.b1[1], 'ПОЛЬЗОВАТЕЛЬСКОЕ', 'СОГЛАШЕНИЕ');
+    labelButton(CX0, CON.b2[0], CX1, CON.b2[1], 'ПОЛИТИКА', 'КОНФИДЕНЦИАЛЬНОСТИ');
+    // the tick box: a frame and a tick inside it when ticked
+    fillRect(CX0, CON.box[0], 10, 10, COL.panelEdge);
+    fillRect(CX0 + 1, CON.box[0] + 1, 8, 8, COL.row);
+    if (consentChecked) fillRect(CX0 + 3, CON.box[0] + 3, 4, 4, COL.emblem);
+    drawText('ПРИНИМАЮ ДОКУМЕНТЫ', 1, CX0 + 16, CON.box[0] + 1, COL.text, 'left');
+    // the continue button: lit only after the tick box
+    fillRect(CX0, CON.go[0], CX1 - CX0, CON.go[1] - CON.go[0], consentChecked ? COL.btnFrame : COL.panelEdge);
+    fillRect(CX0 + 2, CON.go[0] + 2, CX1 - CX0 - 4, CON.go[1] - CON.go[0] - 4, consentChecked ? COL.btnFill : COL.row);
+    drawTextBox('ПРОДОЛЖИТЬ', 1, CX0, CX1, CON.go[0], CON.go[1], consentChecked ? COL.btnText : dimTone());
+  }
+  function handleConsentDown(gx, gy) {
+    if (docsOpen >= 0) {
+      if (inRect(gx, gy, 74, 124, 246, 136)) { docsOpen = -1; docsFromConsent = false; }
+      return;
+    }
+    if (inRect(gx, gy, CX0, CON.b1[0], CX1, CON.b1[1])) { docsOpen = 0; docsFromConsent = true; docsScroll = 0; return; }
+    if (inRect(gx, gy, CX0, CON.b2[0], CX1, CON.b2[1])) { docsOpen = 1; docsFromConsent = true; docsScroll = 0; return; }
+    if (inRect(gx, gy, CX0, CON.box[0], CX1, CON.box[0] + 10)) { consentChecked = !consentChecked; return; }
+    if (consentChecked && inRect(gx, gy, CX0, CON.go[0], CX1, CON.go[1])) {
+      try { localStorage.setItem(CONSENT_KEY, '1'); } catch (err) { /* storage blocked: the window shows again next time */ }
+      consentOpen = false;
+    }
+  }
+
   const SUPPORT_EMAILS = ['CR4YNEGAMES@GMAIL.COM', 'BILLKAMIKADZE@GMAIL.COM'];
   const DOC_TOP = 22, DOC_BOTTOM = 120, DOC_X = 80, DOC_W = 160;
   // the copy button: a thin 1 px frame in the same colour as the menu's borders, and the inside of the card
@@ -2521,7 +2568,7 @@
   // the copy button turns into СКОПИРОВАНО for 5 seconds after a copy
   let copiedUntil = [0, 0];
   function copyEmail(i) {
-    try { navigator.clipboard.writeText(SUPPORT_EMAILS[i]).catch(() => {}); } catch (err) { /* the browser refused */ }
+    try { navigator.clipboard.writeText(SUPPORT_EMAILS[i].toLowerCase()).catch(() => {}); } catch (err) { /* the browser refused */ }
     copiedUntil[i] = Date.now() + 5000;
   }
   function drawSupportFrame(title) {
@@ -2548,8 +2595,8 @@
   }
   function drawDocsList() {
     drawSupportFrame('ДОКУМЕНТЫ');
-    settingsButton(74, 56, 246, 70, 'СОГЛАШЕНИЕ');
-    settingsButton(74, 80, 246, 94, 'ПОЛИТИКА');
+    labelButton(74, 50, 246, 74, 'ПОЛЬЗОВАТЕЛЬСКОЕ', 'СОГЛАШЕНИЕ');
+    labelButton(74, 78, 246, 102, 'ПОЛИТИКА', 'КОНФИДЕНЦИАЛЬНОСТИ');
     settingsButton(74, 124, 246, 136, 'НАЗАД');
   }
   function docHeight(body) {
@@ -2584,8 +2631,8 @@
       return;
     }
     if (docsListOpen) {
-      if (inRect(gx, gy, 74, 56, 246, 70)) { docsListOpen = false; docsOpen = 0; docsScroll = 0; return; }
-      if (inRect(gx, gy, 74, 80, 246, 94)) { docsListOpen = false; docsOpen = 1; docsScroll = 0; return; }
+      if (inRect(gx, gy, 74, 50, 246, 74)) { docsListOpen = false; docsOpen = 0; docsScroll = 0; return; }
+      if (inRect(gx, gy, 74, 78, 246, 102)) { docsListOpen = false; docsOpen = 1; docsScroll = 0; return; }
       if (inRect(gx, gy, 74, 124, 246, 136)) docsListOpen = false;
       return;
     }
@@ -2596,6 +2643,7 @@
     settings[name] = Math.round(v * 20) / 20;
     if (name === 'music' && musicGain) musicGain.gain.value = settings.music;
     if (name === 'sound' && sfxGain) sfxGain.gain.value = settings.sound;
+    saveGame();   // the volume is kept on this device (and in the VK cloud save)
   }
 
   function resetAll() {
@@ -2635,8 +2683,8 @@
     if (inRect(gx, gy, 74, 110, 160, 122)) { supportOpen = true; return; }
     if (inRect(gx, gy, 164, 110, 246, 122)) { docsListOpen = true; return; }
     if (inRect(gx, gy, 74, 124, 246, 136)) { settingsOpen = false; resetStage = 0; panelOpen = shopReturn; shopReturn = false; return; }   // back to the shop only if it was open before
-    if (inRect(gx, gy, 198, 66, 248, 78)) { settings.animBg = !settings.animBg; return; }
-    if (inRect(gx, gy, 198, 80, 248, 92)) { settings.shake = !settings.shake; return; }
+    if (inRect(gx, gy, 198, 66, 248, 78)) { settings.animBg = !settings.animBg; saveGame(); return; }
+    if (inRect(gx, gy, 198, 80, 248, 92)) { settings.shake = !settings.shake; saveGame(); return; }
     if (inRect(gx, gy, 74, 96, 246, 108)) {
       resetStage += 1;
       if (resetStage >= 3) { resetAll(); resetStage = 0; }
@@ -2679,6 +2727,7 @@
   function handleTapDown(e) {
     e.preventDefault();
     if (splashT > 0) return;                  // the start screen takes no taps
+    if (consentOpen) { const [cgx, cgy] = toGame(e); handleConsentDown(cgx, cgy - SHEET_DY); return; }   // the first-launch window comes before the info window
     if (infoOpen) {                           // the launch info window: its OK button closes it (scene x, raw screen y)
       const [ix] = toGame(e);
       if (inRect(ix, lastRawY, 85, 218, 235, 236)) infoOpen = false;
@@ -2687,6 +2736,7 @@
     startMusicOnce();
     const [gx, gy] = toGame(e);
     if (!anyMenuOpenNow() && inRect(gx, gy, FS_BL_X, FS_BL_Y, FS_BL_X + FS_BL_S, FS_BL_Y + FS_BL_S)) { toggleFullScreen(); return; }
+    if (consentOpen) { handleConsentDown(gx, gy - SHEET_DY); return; }
     if (supportOpen || docsListOpen || docsOpen >= 0) { handleInfoDown(gx, gy - SHEET_DY); return; }
     if (settingsOpen) { handleSettingsDown(gx, gy - SHEET_DY); return; }   // the settings window blocks everything else
     if (rebirthOpen) { handleRebirthDown(gx, gy - SHEET_DY); return; }      // so does the rebirth window
@@ -3494,8 +3544,9 @@
     if (skinOffer) inSheet(drawSkinOffer);
     if (ev && ev.type === 'appetite') drawAppetite();
     if (loadingLeft > 0) drawLoading();
+    if (consentOpen) { inSheet(drawConsent); if (docsOpen >= 0) inSheet(drawDocReader); }   // the first-launch window is the top layer
     if (boostMenuOpen) inSheet(drawBoostMenu);   // the same place as the other menus: the sheet under the scene
-    if (!anyMenuOpenNow() && document.fullscreenEnabled) drawFullScreenIconAt(FS_BL_X, FS_BL_Y, FS_BL_S);   // only where the browser allows fullscreen
+    if (!anyMenuOpenNow() && !consentOpen && document.fullscreenEnabled) drawFullScreenIconAt(FS_BL_X, FS_BL_Y, FS_BL_S);   // only where the browser allows fullscreen
     ctx.restore();
   }
 
@@ -4025,7 +4076,7 @@
       }
       if (bonyaDraw) screenCtx.drawImage(bonyaDraw, BONYA_X - SCENE_CROP_X, BONYA_Y);
     }
-    if (splashT <= 0 && infoOpen) drawInfoDialog();   // on top of the finished picture, on the screen
+    if (splashT <= 0 && infoOpen && !consentOpen) drawInfoDialog();   // the first-launch window is shown first   // on top of the finished picture, on the screen
     requestAnimationFrame(frame);
   }
   let fitW = 0, fitH = 0;   // the window size the canvas was last fitted to
